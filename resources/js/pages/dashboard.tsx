@@ -33,8 +33,15 @@ function timeGreeting(): string {
 }
 
 export default function Dashboard({ accounts, sets, limits, posts }: Props) {
-    const { auth } = usePage().props;
+    const page = usePage();
+    const { auth } = page.props;
     const firstName = (auth.user?.name ?? '').split(/\s+/)[0] || 'there';
+
+    // A calendar slot click opens the composer here with a pre-set schedule time.
+    const initialScheduleAt = new URL(
+        page.url,
+        'http://localhost',
+    ).searchParams.get('schedule_at');
 
     return (
         <>
@@ -55,6 +62,7 @@ export default function Dashboard({ accounts, sets, limits, posts }: Props) {
                     accounts={accounts}
                     sets={sets}
                     limits={limits}
+                    initialScheduleAt={initialScheduleAt}
                 />
 
                 <RecentFeed posts={posts} />

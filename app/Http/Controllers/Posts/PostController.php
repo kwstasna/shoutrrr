@@ -5,19 +5,59 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Posts;
 
 use App\Dto\Post\DraftData;
+use App\Enums\PostStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Requests\Post\UpdatePostRequest;
+use App\Jobs\DeletePostTarget;
+use App\Models\AccountSet;
 use App\Models\Post;
+use App\Models\PostTarget;
 use App\Services\Posts\DraftService;
 use App\Services\Posts\PostStaleWriteException;
+use App\Support\PostListItem;
 use App\Support\PostView;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class PostController extends Controller
 {
     public function __construct(private readonly DraftService $drafts) {}
+
+    public function index(Request $request): Response
+    {
+        $request->user()->can('viewAny', Post::class) ?: abort(403);
+
+        $status = $request->string('status')->toString();
+        $set = $request->string('set')->toString();
+        $platform = $request->string('platform')->toString();
+        $q = $request->string('q')->toString();
+
+        $page = Post::query()
+            ->with(['author:id,name', 'targets'])
+            ->where('status', '!=', PostStatus::Deleted->value)
+            ->when($status !== '' && $status !== 'all', fn ($query) => $query->where('status', $status))
+            ->when($set !== '', fn ($query) => $query->where('account_set_id', $set))
+            ->when($platform !== '', fn ($query) => $query->whereHas('targets',
+                fn ($t) => $t->where('platform', $platform)))
+            ->when($q !== '', fn ($query) => $query->whereLike('base_text', "%{$q}%"))
+            ->orderByRaw('COALESCE(scheduled_at, created_at) DESC')
+            ->cursorPaginate(20)
+            ->withQueryString()
+            ->through(fn (Post $post): array => PostListItem::make($post));
+
+        $sets = AccountSet::query()->get(['id', 'name'])
+            ->map(fn (AccountSet $s): array => ['id' => $s->id, 'name' => $s->name])->all();
+
+        return Inertia::render('posts/index', [
+            'posts' => Inertia::scroll($page),
+            'filters' => ['status' => $status ?: 'all', 'set' => $set, 'platform' => $platform, 'q' => $q],
+            'sets' => $sets,
+        ]);
+    }
 
     public function store(StorePostRequest $request): JsonResponse
     {
@@ -50,10 +90,31 @@ class PostController extends Controller
         return response()->json(['post' => PostView::make($post->fresh(['targets.account', 'media']))]);
     }
 
-    public function destroy(Post $post): RedirectResponse
+    public function destroy(Request $request, Post $post): RedirectResponse
     {
-        $post->delete();
+        $request->user()->can('delete', $post) ?: abort(403);
 
-        return back()->with('success', 'Draft deleted.');
+        $post->loadMissing('targets');
+
+        $hadBeenPublished = in_array($post->status, [
+            PostStatus::Published, PostStatus::Partial, PostStatus::Failed,
+        ], true);
+
+        if (! $hadBeenPublished) {
+            $post->delete();
+
+            return back()->with('success', 'Post deleted.');
+        }
+
+        $post->targets
+            ->filter(fn (PostTarget $t): bool => $t->remote_id !== null)
+            ->each(fn (PostTarget $t) => DeletePostTarget::dispatch($t));
+
+        $post->forceFill([
+            'status' => PostStatus::Deleted->value,
+            'deleted_at' => now(),
+        ])->save();
+
+        return back()->with('success', 'Post deleted from connected accounts where possible.');
     }
 }

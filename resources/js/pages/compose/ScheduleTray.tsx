@@ -9,9 +9,10 @@ import { defaultPickedAt, PickTimePopover } from './PickTimePopover';
 type Props = {
     tray: TrayState;
     onChange: (next: TrayState) => void;
+    tz: string;
 };
 
-export function ScheduleTray({ tray, onChange }: Props) {
+export function ScheduleTray({ tray, onChange, tz }: Props) {
     return (
         <div className="flex items-center gap-2">
             <div
@@ -38,7 +39,7 @@ export function ScheduleTray({ tray, onChange }: Props) {
                     onClick={() =>
                         onChange({
                             mode: 'pick',
-                            pickedAt: tray.pickedAt ?? defaultPickedAt(),
+                            pickedAt: tray.pickedAt ?? defaultPickedAt(tz),
                         })
                     }
                 />
@@ -49,8 +50,12 @@ export function ScheduleTray({ tray, onChange }: Props) {
                     onChange={(iso) =>
                         onChange({ mode: 'pick', pickedAt: iso })
                     }
+                    tz={tz}
                 />
             )}
+            <span className="text-[11px] text-muted-foreground">
+                Times in {tz}
+            </span>
         </div>
     );
 }

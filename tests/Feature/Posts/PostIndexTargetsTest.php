@@ -38,9 +38,9 @@ test('posts index payload includes per-target status and published_at', function
         ->get('/posts')
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('posts/index')
-            ->where('posts.0.published_at', fn ($value) => $value !== null)
-            ->where('posts.0.targets.0.platform', 'x')
-            ->where('posts.0.targets.0.status', 'failed')
-            ->where('posts.0.targets.0.error_kind', 'rate_limited')
-            ->where('posts.0.targets.0.error_message', 'slow down'));
+            ->where('posts.data.0.published_at', fn ($value) => $value !== null)
+            ->where('posts.data.0.targets.0.platform', 'x')
+            ->where('posts.data.0.targets.0.status', 'failed')
+            ->where('posts.data.0.targets.0.error_kind', 'rate_limited')
+            ->where('posts.data.0.targets.0.error_message', 'slow down'));
 });

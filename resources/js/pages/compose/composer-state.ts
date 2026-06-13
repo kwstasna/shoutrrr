@@ -72,7 +72,14 @@ export function pickActiveAccount(
     );
 }
 
-export function initialComposerState(): ComposerState {
+/**
+ * Build a fresh composer state. When `scheduleAt` (an ISO string) is given, the
+ * schedule tray opens pre-set to "Pick time" at that instant — used when the
+ * composer is opened from a calendar slot click.
+ */
+export function initialComposerState(
+    scheduleAt: string | null = null,
+): ComposerState {
     return {
         postId: null,
         activeTab: BASE_TAB,
@@ -84,7 +91,9 @@ export function initialComposerState(): ComposerState {
         overrideByAccount: {},
         mediaSubsetExcludes: new Set(),
         media: [],
-        scheduleTray: { mode: 'now', pickedAt: null },
+        scheduleTray: scheduleAt
+            ? { mode: 'pick', pickedAt: scheduleAt }
+            : { mode: 'now', pickedAt: null },
         conflict: null,
     };
 }

@@ -9,6 +9,7 @@ export type WorkspaceSummary = {
 
 export type CurrentWorkspace = WorkspaceSummary & {
     permissions: string[];
+    timezone?: string;
 };
 
 export type WorkspacesData = {

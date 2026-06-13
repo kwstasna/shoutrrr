@@ -1,3 +1,4 @@
+import PublicShareController from './PublicShareController'
 import DashboardController from './DashboardController'
 import WorkspaceController from './WorkspaceController'
 import Auth from './Auth'
@@ -7,6 +8,7 @@ import Posts from './Posts'
 import AccountSets from './AccountSets'
 
 const Controllers = {
+    PublicShareController: Object.assign(PublicShareController, PublicShareController),
     DashboardController: Object.assign(DashboardController, DashboardController),
     WorkspaceController: Object.assign(WorkspaceController, WorkspaceController),
     Auth: Object.assign(Auth, Auth),

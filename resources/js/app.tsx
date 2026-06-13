@@ -15,6 +15,8 @@ void createInertiaApp({
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
+            // Public, unauthenticated share viewer — no app shell/sidebar.
+            case name.startsWith('share/'):
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

@@ -8,6 +8,7 @@ use App\Enums\Platform;
 use App\Models\AccountSet;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
+use App\Support\PostListItem;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -43,17 +44,8 @@ class DashboardController extends Controller
             ->latest('updated_at')
             ->limit(25)
             ->get()
-            ->map(fn (Post $post): array => [
-                'id' => $post->id,
-                'base_text' => $post->base_text,
-                'status' => $post->status->value,
-                'status_label' => $post->status->label(),
-                'author' => $post->author?->name,
-                'target_count' => $post->targets->count(),
-                'updated_at' => $post->updated_at->toIso8601String(),
-                'scheduled_at' => $post->scheduled_at?->toIso8601String(),
-                'platforms' => $post->targets->pluck('platform')->map(fn (Platform $p): string => $p->value)->unique()->values()->all(),
-            ])->all();
+            ->map(fn (Post $post): array => PostListItem::make($post))
+            ->all();
 
         return Inertia::render('dashboard', [
             'accounts' => $accounts,

@@ -1,9 +1,16 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PublicShareController;
+use App\Http\Middleware\NoIndex;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::get('/share/{token}', [PublicShareController::class, 'show'])
+    ->middleware(NoIndex::class)
+    ->name('share.show')
+    ->where('token', '[A-Za-z0-9\-]+');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');

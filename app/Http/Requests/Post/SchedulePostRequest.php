@@ -18,8 +18,20 @@ class SchedulePostRequest extends FormRequest
      */
     public function rules(): array
     {
+        // A null value un-schedules (back to draft); a present value must be in
+        // the future — a post can't be scheduled (or rescheduled) into the past.
         return [
-            'scheduled_at' => ['nullable', 'date'],
+            'scheduled_at' => ['nullable', 'date', 'after:now'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'scheduled_at.after' => 'Choose a time in the future — a post can\'t be scheduled in the past.',
         ];
     }
 }

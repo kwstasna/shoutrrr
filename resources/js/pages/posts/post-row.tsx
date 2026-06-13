@@ -1,19 +1,10 @@
 import { router, useHttp } from '@inertiajs/react';
-import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns';
-import { MoreHorizontal } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import ComposerController from '@/actions/App/Http/Controllers/Posts/ComposerController';
-import PostController from '@/actions/App/Http/Controllers/Posts/PostController';
 import { PlatformGlyph } from '@/components/platform-glyph';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { dayjs } from '@/lib/datetime/dayjs';
 import { cn } from '@/lib/utils';
 import {
     type ChipTarget,
@@ -21,6 +12,8 @@ import {
 } from '@/pages/compose/TargetStatusChips';
 import type { PlatformName, PostStatus, PostView } from '@/pages/compose/types';
 import { retry as retryRoute } from '@/routes/posts/targets';
+
+import { PostRowActions } from './post-row-actions';
 
 export type { PostStatus } from '@/pages/compose/types';
 
@@ -63,7 +56,8 @@ const STATUS_META: Record<
     },
     published: {
         variant: null,
-        className: 'border-transparent bg-emerald-500/10 text-emerald-600',
+        className:
+            'border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         label: 'Published',
     },
     partial: {
@@ -77,28 +71,21 @@ const STATUS_META: Record<
 };
 
 function formatWhen(dateStr: string): { when: string; time: string } {
-    const d = parseISO(dateStr);
+    const d = dayjs(dateStr);
+    const startOfToday = dayjs().startOf('day');
     let when: string;
-    if (isToday(d)) {
+    if (d.isSame(startOfToday, 'day')) {
         when = 'Today';
-    } else if (isYesterday(d)) {
+    } else if (d.isSame(startOfToday.subtract(1, 'day'), 'day')) {
         when = 'Yesterday';
-    } else if (isTomorrow(d)) {
+    } else if (d.isSame(startOfToday.add(1, 'day'), 'day')) {
         when = 'Tomorrow';
     } else {
-        const diffDays = Math.round(
-            (d.getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000,
-        );
-        if (diffDays > -7 && diffDays < 7) {
-            when = format(d, 'EEE'); // Mon, Tue …
-        } else {
-            when = format(d, 'MMM d'); // Jan 5
-        }
+        const diffDays = d.startOf('day').diff(startOfToday, 'day');
+        when =
+            diffDays > -7 && diffDays < 7 ? d.format('ddd') : d.format('MMM D');
     }
-    return {
-        when,
-        time: format(d, 'h:mm a').replace('am', 'AM').replace('pm', 'PM'),
-    };
+    return { when, time: d.format('h:mm A') };
 }
 
 function StatusBadge({ status }: { status: PostStatus }) {
@@ -110,57 +97,6 @@ function StatusBadge({ status }: { status: PostStatus }) {
         >
             {meta.label}
         </Badge>
-    );
-}
-
-function PostRowActions({ post }: { post: PostRowData }) {
-    const [deleteConfirm, setDeleteConfirm] = useState(false);
-
-    function openCompose() {
-        router.visit(ComposerController.show(post.id).url);
-    }
-
-    function handleDelete() {
-        if (!deleteConfirm) {
-            setDeleteConfirm(true);
-            return;
-        }
-        router.delete(PostController.destroy(post.id).url);
-    }
-
-    function stopBubble(e: React.MouseEvent | React.KeyboardEvent) {
-        e.stopPropagation();
-    }
-
-    return (
-        // oxlint-disable-next-line prefer-tag-over-role -- wrapper stops row-click bubbling only
-        <div role="presentation" onClick={stopBubble} onKeyDown={stopBubble}>
-            <DropdownMenu
-                onOpenChange={(open) => !open && setDeleteConfirm(false)}
-            >
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Post actions"
-                        className="size-8 text-muted-foreground hover:text-foreground"
-                    >
-                        <MoreHorizontal className="size-4" aria-hidden />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem onSelect={openCompose}>
-                        Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={handleDelete}
-                    >
-                        {deleteConfirm ? 'Confirm delete' : 'Delete'}
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
     );
 }
 

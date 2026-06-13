@@ -63,6 +63,21 @@ test('PUT /posts/{post}/schedule unschedules when scheduled_at is null', functio
     expect($post->scheduled_at)->toBeNull();
 });
 
+test('PUT /posts/{post}/schedule rejects a time in the past', function () {
+    [$user, $workspace] = schedulingMember();
+    $post = Post::factory()->create([
+        'workspace_id' => $workspace->id,
+        'status' => PostStatus::Draft,
+    ]);
+
+    test()->putJson("/posts/{$post->id}/schedule", [
+        'scheduled_at' => now()->subHour()->toIso8601String(),
+    ])->assertStatus(422)->assertJsonValidationErrors('scheduled_at');
+
+    expect($post->refresh()->status)->toBe(PostStatus::Draft);
+    expect($post->scheduled_at)->toBeNull();
+});
+
 test('a member cannot schedule a post in another workspace', function () {
     [$user, $workspace] = schedulingMember();
     $foreign = Post::factory()->create(); // different workspace

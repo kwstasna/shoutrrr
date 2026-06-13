@@ -100,6 +100,15 @@ describe('composerReducer', () => {
         expect(state.postId).toBeNull();
         expect(state.saveState).toBe('idle');
         expect(state.activeTab).toBe('__base__');
+        expect(state.scheduleTray).toEqual({ mode: 'now', pickedAt: null });
+    });
+
+    it('pre-arms the schedule tray when given an initial schedule time', () => {
+        const state = initialComposerState('2026-06-20T09:00:00Z');
+        expect(state.scheduleTray).toEqual({
+            mode: 'pick',
+            pickedAt: '2026-06-20T09:00:00Z',
+        });
     });
 
     it('hydrates base text, destination, baseline, and per-account maps', () => {

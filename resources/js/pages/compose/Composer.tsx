@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { useReducer } from 'react';
 
+import { useSchedulingTimezone } from '@/hooks/use-scheduling-timezone';
 import { index as accountsRoute } from '@/routes/accounts';
 
 import CharCounter from './CharCounter';
@@ -35,6 +36,8 @@ type ComposerProps = {
     accounts: Account[];
     sets: AccountSet[];
     limits: PlatformLimits[];
+    /** ISO time to pre-arm the schedule tray with (e.g. from a calendar slot click). */
+    initialScheduleAt?: string | null;
 };
 
 function accountIdsFor(
@@ -65,14 +68,16 @@ export default function Composer({
     accounts,
     sets,
     limits,
+    initialScheduleAt = null,
 }: ComposerProps) {
+    const schedulingTz = useSchedulingTimezone();
     const [state, dispatch] = useReducer(composerReducer, post, (p) =>
         p
             ? composerReducer(initialComposerState(), {
                   type: 'hydrate',
                   post: p,
               })
-            : initialComposerState(),
+            : initialComposerState(initialScheduleAt),
     );
 
     const destinationAccountIds = accountIdsFor(state, accounts, sets);
@@ -306,6 +311,7 @@ export default function Composer({
                     onChange={(tray) =>
                         dispatch({ type: 'setScheduleTray', tray })
                     }
+                    tz={schedulingTz}
                 />
                 <SubmitBar
                     tray={state.scheduleTray}

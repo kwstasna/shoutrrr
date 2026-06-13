@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
+    CalendarDays,
     FileText,
     FolderGit2,
     LayoutGrid,
@@ -25,7 +26,7 @@ import {
 import { WorkspaceSelector } from '@/components/workspace-selector';
 import { dashboard } from '@/routes';
 import { index as accountsRoute } from '@/routes/accounts';
-import { index as postsRoute } from '@/routes/posts';
+import { calendar as calendarRoute, index as postsRoute } from '@/routes/posts';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -38,6 +39,11 @@ const mainNavItems: NavItem[] = [
         title: 'Posts',
         href: postsRoute(),
         icon: FileText,
+    },
+    {
+        title: 'Calendar',
+        href: calendarRoute(),
+        icon: CalendarDays,
     },
     {
         title: 'Accounts',

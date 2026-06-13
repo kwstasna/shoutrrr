@@ -76,7 +76,7 @@ class HandleInertiaRequests extends Middleware
             ];
         }
 
-        $memberships = $user->workspaceMemberships()->with('workspace')->get();
+        $memberships = $user->workspaceMemberships()->with('workspace.postingSchedule')->get();
 
         $all = $memberships->map(fn (WorkspaceMembership $m) => [
             'id' => $m->workspace->id,
@@ -96,6 +96,7 @@ class HandleInertiaRequests extends Middleware
                     'role' => $membership->role->value,
                     'logo' => $membership->workspace->logo,
                     'permissions' => $membership->permissions,
+                    'timezone' => $membership->workspace->postingSchedule->timezone ?? 'UTC',
                 ];
             }
         }

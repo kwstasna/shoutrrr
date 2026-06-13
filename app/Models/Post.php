@@ -93,4 +93,12 @@ class Post extends Model
     {
         return $this->hasMany(PostMedia::class)->orderBy('position');
     }
+
+    /**
+     * @return HasMany<PostShare, $this>
+     */
+    public function shares(): HasMany
+    {
+        return $this->hasMany(PostShare::class);
+    }
 }

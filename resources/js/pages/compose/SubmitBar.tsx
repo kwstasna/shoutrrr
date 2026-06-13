@@ -35,6 +35,7 @@ export function SubmitBar({
     // at submit time so it always reflects the latest reducer state.
     const http = useHttp<Record<string, never>, { post: PostView }>({});
     const [noSlot, setNoSlot] = useState(false);
+    const [pastTime, setPastTime] = useState(false);
 
     const submitLabel =
         tray.mode === 'now'
@@ -45,6 +46,7 @@ export function SubmitBar({
 
     async function handleSubmit() {
         setNoSlot(false);
+        setPastTime(false);
         // Flush any pending edits, then issue the publish/queue/schedule call.
         onSaveDraft();
         const id = postId ?? (await onEnsurePost());
@@ -80,10 +82,16 @@ export function SubmitBar({
 
         // mode === 'pick' → schedule at the chosen time (existing M2 path).
         http.transform(() => ({ scheduled_at: tray.pickedAt }));
-        const result = await http.put(PostScheduleController.update(id).url, {
+        await http.put(PostScheduleController.update(id).url, {
+            onSuccess: (data) => onSubmitted?.(data.post),
+            // 422 = the chosen time is in the past (server guard).
+            onHttpException: (response) => {
+                if (response.status === 422) {
+                    setPastTime(true);
+                }
+            },
             onNetworkError: () => undefined,
         });
-        onSubmitted?.(result.post);
     }
 
     return (
@@ -113,6 +121,11 @@ export function SubmitBar({
                     >
                         Add slots
                     </Link>
+                </p>
+            )}
+            {pastTime && (
+                <p className="text-[12px] text-destructive">
+                    That time has already passed — pick a time in the future.
                 </p>
             )}
         </div>
