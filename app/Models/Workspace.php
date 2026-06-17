@@ -55,10 +55,39 @@ class Workspace extends Model
     }
 
     /**
+     * @return array<string, string>
+     */
+    #[\Override]
+    protected function casts(): array
+    {
+        return [
+            'onboarding_welcomed_at' => 'datetime',
+            'onboarding_dismissed_at' => 'datetime',
+            'onboarding_progress' => 'array',
+        ];
+    }
+
+    /**
      * @return HasOne<PostingSchedule, $this>
      */
     public function postingSchedule(): HasOne
     {
         return $this->hasOne(PostingSchedule::class);
+    }
+
+    /**
+     * @return HasMany<Post, $this>
+     */
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class);
+    }
+
+    /**
+     * @return HasMany<ConnectedAccount, $this>
+     */
+    public function connectedAccounts(): HasMany
+    {
+        return $this->hasMany(ConnectedAccount::class);
     }
 }

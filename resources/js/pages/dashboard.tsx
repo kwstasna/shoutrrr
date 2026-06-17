@@ -3,12 +3,16 @@ import { Deferred, Head, usePage } from '@inertiajs/react';
 import Composer from '@/components/compose/composer';
 import { DashboardAura } from '@/components/dashboard/dashboard-aura';
 import { RecentFeed } from '@/components/dashboard/recent-feed';
+import { GettingStartedCard } from '@/components/onboarding/getting-started-card';
+import { WelcomeModal } from '@/components/onboarding/welcome-modal';
 import type { PostRowData } from '@/components/posts/post-row';
 import { RecentFeedSkeleton } from '@/components/skeletons/recent-feed-skeleton';
 import { dashboard } from '@/routes';
+import type { OnboardingData } from '@/types';
 
 type Props = {
     posts?: PostRowData[];
+    onboarding: OnboardingData | null;
 };
 
 function timeGreeting(): string {
@@ -26,7 +30,7 @@ function timeGreeting(): string {
     return 'Good evening';
 }
 
-export default function Dashboard({ posts }: Props) {
+export default function Dashboard({ posts, onboarding }: Props) {
     const page = usePage();
     const { auth, shell } = page.props;
     const firstName = (auth.user?.name ?? '').split(/\s+/)[0] || 'there';
@@ -42,6 +46,7 @@ export default function Dashboard({ posts }: Props) {
             <Head title="Dashboard" />
             <div className="relative isolate mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6">
                 <DashboardAura />
+                {onboarding && <WelcomeModal welcomed={onboarding.welcomed} />}
                 <h1 className="text-[26px] leading-tight font-semibold tracking-tight">
                     {timeGreeting()},{' '}
                     {/* Brand-green gradient name. Stops are derived from
@@ -55,6 +60,8 @@ export default function Dashboard({ posts }: Props) {
                 <p className="mt-1.5 mb-7 text-[13.5px] tracking-tight text-muted-foreground">
                     Write something new — it autosaves as you go.
                 </p>
+
+                {onboarding && <GettingStartedCard onboarding={onboarding} />}
 
                 <Composer
                     post={null}

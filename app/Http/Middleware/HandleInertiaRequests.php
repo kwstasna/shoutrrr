@@ -74,11 +74,18 @@ class HandleInertiaRequests extends Middleware
      */
     private function shellData(?User $user): array
     {
-        if (! $user) {
+        if (! $user || ! $user->current_workspace_id) {
             return ['accounts' => [], 'sets' => [], 'limits' => Platform::allLimits()];
         }
 
+        // Scope explicitly to the current workspace. The HasWorkspaceScope global
+        // scope also covers this, but only once WorkspaceMiddleware has populated
+        // the context — being explicit keeps shell data correct regardless of
+        // middleware ordering and prevents cross-workspace leakage.
+        $workspaceId = $user->current_workspace_id;
+
         $accounts = ConnectedAccount::query()
+            ->where('workspace_id', $workspaceId)
             ->get()
             ->map(fn (ConnectedAccount $account): array => [
                 'id' => $account->id,
@@ -89,6 +96,7 @@ class HandleInertiaRequests extends Middleware
             ])->values()->all();
 
         $sets = AccountSet::query()
+            ->where('workspace_id', $workspaceId)
             ->with('accounts:id')
             ->get()
             ->map(fn (AccountSet $set): array => [

@@ -21,9 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             HandleAppearance::class,
+            // WorkspaceMiddleware must run BEFORE HandleInertiaRequests: Inertia
+            // resolves share() (which reads workspace-scoped shell data) inside
+            // its own handle() before calling $next, so the workspace_id context
+            // must be set first or scoped queries leak across workspaces.
+            WorkspaceMiddleware::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
-            WorkspaceMiddleware::class,
             CaptureMcpWorkspaceSelection::class,
         ]);
     })
