@@ -13,8 +13,8 @@ import { toast } from 'sonner';
 
 import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 import WorkspaceController from '@/actions/App/Http/Controllers/WorkspaceController';
-import Heading from '@/components/heading';
-import InputError from '@/components/input-error';
+import Heading from '@/components/common/heading';
+import InputError from '@/components/common/input-error';
 import { MembersSkeleton } from '@/components/skeletons/members-skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';

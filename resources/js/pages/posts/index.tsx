@@ -9,7 +9,8 @@ import {
 import { Filter, Inbox, Search, SearchX, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { FilterTabs } from '@/components/filter-tabs';
+import { FilterTabs } from '@/components/common/filter-tabs';
+import { PostRow, type PostRowData } from '@/components/posts/post-row';
 import { PostListSkeleton } from '@/components/skeletons/post-list-skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,6 @@ import {
 } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PostRow, type PostRowData } from '@/pages/posts/post-row';
 import { dashboard } from '@/routes';
 import { index as postsRoute } from '@/routes/posts';
 

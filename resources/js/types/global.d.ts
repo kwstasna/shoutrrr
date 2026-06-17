@@ -1,9 +1,5 @@
-import type {
-    Account,
-    AccountSet,
-    PlatformLimits,
-} from '@/pages/compose/types';
 import type { Auth } from '@/types/auth';
+import type { Account, AccountSet, PlatformLimits } from '@/types/compose';
 import type { NotificationsData } from '@/types/notifications';
 import type { FlashData, WorkspacesData } from '@/types/workspace';
 

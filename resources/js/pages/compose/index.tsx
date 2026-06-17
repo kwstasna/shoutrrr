@@ -1,14 +1,13 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, PenLine } from 'lucide-react';
 
+import Composer from '@/components/compose/composer';
+import { PostPageActions } from '@/components/posts/post-page-actions';
 import { Button } from '@/components/ui/button';
-import { PostPageActions } from '@/pages/posts/post-page-actions';
+import { firstLineTitle } from '@/lib/compose/composer-state';
 import { dashboard } from '@/routes';
 import { index as postsRoute } from '@/routes/posts';
-
-import Composer from './Composer';
-import { firstLineTitle } from './composer-state';
-import type { ComposePageProps } from './types';
+import type { ComposePageProps } from '@/types/compose';
 
 export default function ComposePage({
     post,

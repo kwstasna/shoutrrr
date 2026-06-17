@@ -1,4 +1,4 @@
-import type { PlatformName } from '@/pages/compose/types';
+import type { PlatformName } from '@/types/compose';
 
 function cleanHandle(handle: string): string {
     return handle.replace(/^@/, '').trim();

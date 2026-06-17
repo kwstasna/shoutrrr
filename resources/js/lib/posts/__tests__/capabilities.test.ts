@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { postCapabilities } from '@/lib/posts/capabilities';
-import type { PostView } from '@/pages/compose/types';
+import type { PostView } from '@/types/compose';
 
 function post(partial: Partial<PostView>): PostView {
     return {

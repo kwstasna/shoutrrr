@@ -1,4 +1,4 @@
-import { FlashListener } from '@/components/flash-listener';
+import { FlashListener } from '@/components/common/flash-listener';
 import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
 import type { BreadcrumbItem } from '@/types';
 

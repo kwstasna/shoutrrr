@@ -1,9 +1,9 @@
 import { Head } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 
-import { PostPreview, StatusChip } from '@/components/post-preview';
+import { PostPreview, StatusChip } from '@/components/posts/post-preview';
 import { dayjs } from '@/lib/datetime/dayjs';
-import type { PublicPostView } from '@/pages/share/types';
+import type { PublicPostView } from '@/types/share';
 
 /* -------------------------------------------------------------------------- */
 /* Atmosphere                                                                  */

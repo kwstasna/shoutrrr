@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 
 import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 import WorkspaceController from '@/actions/App/Http/Controllers/WorkspaceController';
-import Heading from '@/components/heading';
-import InputError from '@/components/input-error';
+import Heading from '@/components/common/heading';
+import InputError from '@/components/common/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

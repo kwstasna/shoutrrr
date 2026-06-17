@@ -1,5 +1,5 @@
 import { dayjs } from '@/lib/datetime/dayjs';
-import type { PostView } from '@/pages/compose/types';
+import type { PostView } from '@/types/compose';
 
 /**
  * A short, human-relative status line for a post's detail header — chiefly the

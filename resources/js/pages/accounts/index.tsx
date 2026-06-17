@@ -13,9 +13,9 @@ import { useState } from 'react';
 import BlueskyConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/BlueskyConnectionController';
 import ConnectedAccountController from '@/actions/App/Http/Controllers/ConnectedAccounts/ConnectedAccountController';
 import OAuthConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/OAuthConnectionController';
-import Heading from '@/components/heading';
-import InputError from '@/components/input-error';
-import { PlatformGlyph } from '@/components/platform-glyph';
+import Heading from '@/components/common/heading';
+import InputError from '@/components/common/input-error';
+import { PlatformGlyph } from '@/components/common/platform-glyph';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { removeById } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
-import type { PlatformName } from '@/pages/compose/types';
+import type { PlatformName } from '@/types/compose';
 
 /** Per-platform brand accent for the glyph tile (encodes which network it is). */
 const PLATFORM_BRAND: Record<string, { tile: string; glyph: string }> = {

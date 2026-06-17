@@ -1,9 +1,9 @@
 import { Head } from '@inertiajs/react';
 
-import Heading from '@/components/heading';
-import type { Connection } from '@/components/manage-connected-accounts';
-import ManageConnectedAccounts from '@/components/manage-connected-accounts';
-import TextLink from '@/components/text-link';
+import Heading from '@/components/common/heading';
+import TextLink from '@/components/common/text-link';
+import type { Connection } from '@/components/settings/manage-connected-accounts';
+import ManageConnectedAccounts from '@/components/settings/manage-connected-accounts';
 import { edit as editConnections } from '@/routes/connections';
 import { request as passwordReset } from '@/routes/password';
 

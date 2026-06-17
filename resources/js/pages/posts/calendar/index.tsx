@@ -12,19 +12,24 @@ import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { Deferred, Head, router, useHttp, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
+import { CalendarHeader } from '@/components/posts/calendar/calendar-header';
+import {
+    MonthGrid,
+    computeMonthDrop,
+} from '@/components/posts/calendar/month-grid';
+import type { WeekDropHint } from '@/components/posts/calendar/week-grid';
+import {
+    WeekGrid,
+    computeWeekDrop,
+} from '@/components/posts/calendar/week-grid';
+import type { PostRowData } from '@/components/posts/post-row';
 import { CalendarSkeleton } from '@/components/skeletons/calendar-skeleton';
-import { useSchedulingTimezone } from '@/hooks/use-scheduling-timezone';
+import { useSchedulingTimezone } from '@/hooks/posts/use-scheduling-timezone';
 import { dayjs, parseYm, ymKey } from '@/lib/datetime/dayjs';
 import type { Dayjs } from '@/lib/datetime/dayjs';
-import type { PostRowData } from '@/pages/posts/post-row';
 import { dashboard } from '@/routes';
 import { month as calendarMonth } from '@/routes/calendar';
 import { schedule } from '@/routes/posts';
-
-import { CalendarHeader } from './calendar-header';
-import { MonthGrid, computeMonthDrop } from './month-grid';
-import type { WeekDropHint } from './week-grid';
-import { WeekGrid, computeWeekDrop } from './week-grid';
 
 type Props = {
     yyyymm: string;

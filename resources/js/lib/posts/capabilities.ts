@@ -1,4 +1,4 @@
-import type { PostView } from '@/pages/compose/types';
+import type { PostView } from '@/types/compose';
 
 export interface PostCapabilities {
     canEdit: boolean;

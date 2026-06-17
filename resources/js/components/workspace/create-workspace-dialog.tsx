@@ -2,7 +2,7 @@ import { Form } from '@inertiajs/react';
 import { Loader2 } from 'lucide-react';
 
 import WorkspaceController from '@/actions/App/Http/Controllers/WorkspaceController';
-import InputError from '@/components/input-error';
+import InputError from '@/components/common/input-error';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,

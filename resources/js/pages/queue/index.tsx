@@ -20,8 +20,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { dayjs, type Dayjs } from '@/lib/datetime/dayjs';
-import { cn } from '@/lib/utils';
-
 import {
     addSlot,
     copyMondayToWeekdays,
@@ -34,7 +32,8 @@ import {
     type Slot,
     slotsEqual,
     timesForDay,
-} from './queue-schedule';
+} from '@/lib/queue/queue-schedule';
+import { cn } from '@/lib/utils';
 
 type Props = {
     timezone: string;

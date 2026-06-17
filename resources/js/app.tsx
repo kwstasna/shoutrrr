@@ -1,6 +1,6 @@
 import { createInertiaApp } from '@inertiajs/react';
 
-import { ConfirmProvider } from '@/components/confirm-dialog';
+import { ConfirmProvider } from '@/components/common/confirm-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';

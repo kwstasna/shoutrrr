@@ -1,10 +1,10 @@
 import { Deferred, Head, usePage } from '@inertiajs/react';
 
-import { DashboardAura } from '@/components/dashboard-aura';
-import { RecentFeed } from '@/components/recent-feed';
+import Composer from '@/components/compose/composer';
+import { DashboardAura } from '@/components/dashboard/dashboard-aura';
+import { RecentFeed } from '@/components/dashboard/recent-feed';
+import type { PostRowData } from '@/components/posts/post-row';
 import { RecentFeedSkeleton } from '@/components/skeletons/recent-feed-skeleton';
-import Composer from '@/pages/compose/Composer';
-import type { PostRowData } from '@/pages/posts/post-row';
 import { dashboard } from '@/routes';
 
 type Props = {

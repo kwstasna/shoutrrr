@@ -1,10 +1,10 @@
 import { Form, Head } from '@inertiajs/react';
 
-import InputError from '@/components/input-error';
-import OrSeparator from '@/components/or-separator';
-import PasswordInput from '@/components/password-input';
+import PasswordInput from '@/components/auth/password-input';
+import InputError from '@/components/common/input-error';
+import OrSeparator from '@/components/common/or-separator';
+import TextLink from '@/components/common/text-link';
 import SocialLoginList from '@/components/socialite/social-login-list';
-import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

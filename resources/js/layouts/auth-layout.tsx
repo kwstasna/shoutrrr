@@ -1,4 +1,4 @@
-import { FlashListener } from '@/components/flash-listener';
+import { FlashListener } from '@/components/common/flash-listener';
 import AuthLayoutTemplate from '@/layouts/auth/auth-simple-layout';
 
 export default function AuthLayout({
