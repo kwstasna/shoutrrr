@@ -39,15 +39,21 @@ class PostController extends Controller
         $sets = AccountSet::query()->get(['id', 'name'])
             ->map(fn (AccountSet $s): array => ['id' => $s->id, 'name' => $s->name])->all();
 
+        // The status-tab counts and the paginated list share the same set/platform/
+        // search predicates (only the status filter differs), so define them once to
+        // keep the two queries from drifting apart.
+        $applyFilters = fn ($query) => $query
+            ->when($set !== '', fn ($q2) => $q2->where('account_set_id', $set))
+            ->when($platform !== '', fn ($q2) => $q2->whereHas('targets',
+                fn ($t) => $t->where('platform', $platform)))
+            ->when($q !== '', fn ($q2) => $q2->whereLike('base_text', "%{$q}%"));
+
         // Per-status tab counts honour the active search/platform/set filters but
         // not the status filter itself, so each tab shows how many posts of that
         // status match what's currently being looked at.
-        $byStatus = Post::query()
-            ->where('status', '!=', PostStatus::Deleted->value)
-            ->when($set !== '', fn ($query) => $query->where('account_set_id', $set))
-            ->when($platform !== '', fn ($query) => $query->whereHas('targets',
-                fn ($t) => $t->where('platform', $platform)))
-            ->when($q !== '', fn ($query) => $query->whereLike('base_text', "%{$q}%"))
+        $byStatus = $applyFilters(
+            Post::query()->where('status', '!=', PostStatus::Deleted->value)
+        )
             ->selectRaw('status, count(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
@@ -61,14 +67,12 @@ class PostController extends Controller
         ];
 
         return Inertia::render('posts/index', [
-            'posts' => Inertia::scroll(fn () => Post::query()
-                ->with(['author:id,name', 'targets'])
-                ->where('status', '!=', PostStatus::Deleted->value)
-                ->when($status !== '' && $status !== 'all', fn ($query) => $query->where('status', $status))
-                ->when($set !== '', fn ($query) => $query->where('account_set_id', $set))
-                ->when($platform !== '', fn ($query) => $query->whereHas('targets',
-                    fn ($t) => $t->where('platform', $platform)))
-                ->when($q !== '', fn ($query) => $query->whereLike('base_text', "%{$q}%"))
+            'posts' => Inertia::scroll(fn () => $applyFilters(
+                Post::query()
+                    ->with(['author:id,name', 'targets'])
+                    ->where('status', '!=', PostStatus::Deleted->value)
+                    ->when($status !== '' && $status !== 'all', fn ($query) => $query->where('status', $status))
+            )
                 ->orderByRaw('COALESCE(scheduled_at, created_at) DESC')
                 ->cursorPaginate(20)
                 ->withQueryString()

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\Platform;
 use App\Listeners\BindWorkspaceToAccessToken;
 use App\Listeners\SetCurrentWorkspaceOnLogin;
 use App\Models\User;
@@ -19,6 +20,7 @@ use Illuminate\Validation\Rules\Password;
 use Laravel\Passport\Events\AccessTokenCreated;
 use Laravel\Passport\Passport;
 use Override;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 class AppServiceProvider extends ServiceProvider
@@ -39,8 +41,21 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
 
+        // OAuth tokens issued for the MCP/API integration. Without explicit
+        // lifetimes Passport defaults to ~1 year, so a leaked bearer is
+        // effectively permanent.
+        Passport::tokensExpireIn(now()->addHours(8));
+        Passport::refreshTokensExpireIn(now()->addDays(30));
+        Passport::personalAccessTokensExpireIn(now()->addDays(30));
+
         RateLimiter::for('mcp', fn ($request) => Limit::perMinute(60)
             ->by($request->user()?->id ?: $request->ip()));
+
+        // Per-platform throttle for outbound metrics-capture jobs so a large
+        // account/post list can't trip the platforms' own rate limits.
+        foreach (Platform::cases() as $platform) {
+            RateLimiter::for("metrics-{$platform->value}", fn (): Limit => Limit::perMinute(30));
+        }
 
         Gate::before(function (User $user, string $ability): ?bool {
             if (! str_starts_with($ability, 'workspace.')) {
@@ -74,6 +89,8 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureDefaults(): void
     {
+        $this->guardAgainstProductionDebug();
+
         Date::use(CarbonImmutable::class);
 
         DB::prohibitDestructiveCommands(
@@ -89,5 +106,16 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * Refuse to boot a production app with debug mode on — it would expose full
+     * stack traces and Ignition to the public.
+     */
+    public function guardAgainstProductionDebug(): void
+    {
+        if (app()->isProduction() && config('app.debug')) {
+            throw new RuntimeException('APP_DEBUG must be false in production. Refusing to boot.');
+        }
     }
 }

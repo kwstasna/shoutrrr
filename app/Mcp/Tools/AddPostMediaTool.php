@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\WorkspaceTool;
+use App\Models\Post;
 use App\Services\Posts\MediaStorageService;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
@@ -21,6 +22,12 @@ class AddPostMediaTool extends WorkspaceTool
         $workspaceId = $this->bindWorkspace($request);
         if ($workspaceId === null) {
             return Response::error('This connection is not bound to a workspace. Reconnect and select a workspace.');
+        }
+
+        // Media is authored as part of posting; gate on the same member-level
+        // ability as creating a post.
+        if ($denied = $this->authorize($request, 'create', Post::class)) {
+            return $denied;
         }
 
         $validated = $request->validate([

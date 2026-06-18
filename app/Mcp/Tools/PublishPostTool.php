@@ -34,6 +34,10 @@ class PublishPostTool extends WorkspaceTool
             return Response::error('No post with that id exists in this workspace.');
         }
 
+        if ($denied = $this->authorize($request, 'update', $post)) {
+            return $denied;
+        }
+
         if ($unconfirmed = $this->requireConfirmation($request, 'This will publicly publish the post to its connected accounts now.')) {
             return $unconfirmed;
         }

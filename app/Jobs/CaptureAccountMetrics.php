@@ -11,19 +11,57 @@ use App\Models\AccountMetric;
 use App\Models\ConnectedAccount;
 use App\Services\Metrics\MetricsConnectorRegistry;
 use App\Services\Publishing\TokenManager;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Support\Facades\Date;
 
-class CaptureAccountMetrics implements ShouldQueue
+class CaptureAccountMetrics implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 1;
+    public int $tries = 3;
 
     public int $timeout = 60;
 
+    /**
+     * Hold the uniqueness lock at most this long, so a stuck worker can't block
+     * the next cadence window forever.
+     */
+    public int $uniqueFor = 300;
+
     public function __construct(public ConnectedAccount $account) {}
+
+    /**
+     * One in-flight capture per account: overlapping scheduler ticks (or a slow
+     * worker) must not double-dispatch the same account.
+     */
+    public function uniqueId(): string
+    {
+        return $this->account->id;
+    }
+
+    /**
+     * Throttle outbound capture calls per platform so a large account list can't
+     * trip the platform's own rate limits (which would mark accounts failed).
+     *
+     * @return array<int, object>
+     */
+    public function middleware(): array
+    {
+        return [new RateLimited("metrics-{$this->account->platform->value}")];
+    }
+
+    /**
+     * Back off between retries on transient (thrown) errors.
+     *
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [10, 30, 60];
+    }
 
     public function handle(MetricsConnectorRegistry $registry, TokenManager $tokens): void
     {

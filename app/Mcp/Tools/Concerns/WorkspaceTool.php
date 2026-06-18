@@ -6,7 +6,9 @@ namespace App\Mcp\Tools\Concerns;
 
 use App\Models\McpGrantWorkspace;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\Gate;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
@@ -49,15 +51,38 @@ abstract class WorkspaceTool extends Tool
             return null;
         }
 
-        Context::add('workspace_id', $workspaceId);
-
         /** @var User|null $user */
         $user = $request->user();
-        if ($user !== null) {
-            $user->current_workspace_id = $workspaceId; // in-memory only, not saved
+
+        // A token's grant must not outlive the user's membership: if the user has
+        // been removed from (or left) the bound workspace, deny even though a stale
+        // grant row still exists. The web path re-checks membership on every policy
+        // call; this gives MCP the same guarantee.
+        if ($user === null || ! $user->isMemberOfWorkspace($workspaceId)) {
+            return null;
         }
 
+        Context::add('workspace_id', $workspaceId);
+        $user->current_workspace_id = $workspaceId; // in-memory only, not saved
+
         return $workspaceId;
+    }
+
+    /**
+     * Authorize an ability against the bound user/workspace using the same policies
+     * the web controllers use, so MCP write tools never grant more than the web UI.
+     * Call after bindWorkspace(). Returns an error Response to return immediately on
+     * denial, or null to proceed.
+     */
+    protected function authorize(Request $request, string $ability, Model|string $arguments): ?Response
+    {
+        $user = $request->user();
+
+        if ($user === null || Gate::forUser($user)->denies($ability, $arguments)) {
+            return Response::error('You do not have permission to perform this action in this workspace.');
+        }
+
+        return null;
     }
 
     /**

@@ -91,6 +91,18 @@ The **all-in-one** image runs the web app, queue worker, and scheduler in one co
 
 The Compose file declares named volumes for `storage` and the SQLite database, so your data and uploads survive redeploys. To run against managed Postgres/Redis instead, point the `DB_*` / `REDIS_*` env vars at them and switch `DB_CONNECTION`, `CACHE_STORE`, and `QUEUE_CONNECTION` accordingly.
 
+### Security headers & Content-Security-Policy
+
+Outside `local`, Shoutrrr sends a strict, nonce-based **Content-Security-Policy** along with `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and (in production) `Strict-Transport-Security`. This is deliberate hardening — but if you customise the frontend or front the app with an unusual proxy/CDN, it's the first place to look when something renders wrong.
+
+**If the UI loads unstyled or a feature is broken, open your browser's dev console and check for CSP violations.** Common causes and fixes (all in `app/Http/Middleware/SecurityHeaders.php`):
+
+- **Assets served from a different origin than `APP_URL`** (e.g. a CDN host) are blocked by `default-src 'self'`. Serve built assets from the app origin, or add the host to `script-src`/`style-src`/`img-src`.
+- **Third-party embeds or analytics scripts** are blocked — `script-src` only trusts the app's own nonced scripts (`'strict-dynamic'`). Add the source explicitly if you need it.
+- **Images/avatars from arbitrary hosts** are allowed (`img-src` permits `https:`); tighten this if you prefer.
+
+The CSP is intentionally **not** sent in `local` (`APP_ENV=local`) because it is incompatible with the Vite dev server's hot-reload. To verify the production policy locally, run a build and serve with a non-local env (`bun run build && APP_ENV=production php artisan serve`). Note that `Strict-Transport-Security` requires the app to be served over HTTPS.
+
 ## Connecting your accounts
 
 **Bluesky** needs nothing extra — users connect with a Bluesky [app password](https://bsky.app/settings/app-passwords).

@@ -3,12 +3,16 @@
 use App\Enums\MetricsStatus;
 use App\Enums\PostStatus;
 use App\Enums\WorkspaceRole;
+use App\Models\AccountMetric;
+use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostTarget;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\Date;
 
 beforeEach(function (): void {
     $this->workspace = Workspace::factory()->create();
@@ -80,4 +84,40 @@ test('comparison collapses to single ranked list when fewer than 10 eligible pos
             ->where('comparison.top.0.engagement', 30)
             ->where('comparison.top.1.engagement', 20)
             ->where('comparison.top.2.engagement', 10));
+});
+
+test('the follower series is downsampled to one point per day', function (): void {
+    $account = ConnectedAccount::factory()->for($this->workspace)->create();
+
+    // Three readings on the same day collapse to the last one (30).
+    AccountMetric::factory()->create(['connected_account_id' => $account->id, 'captured_at' => Date::now()->subDay()->setTime(8, 0), 'followers' => 10]);
+    AccountMetric::factory()->create(['connected_account_id' => $account->id, 'captured_at' => Date::now()->subDay()->setTime(14, 0), 'followers' => 20]);
+    AccountMetric::factory()->create(['connected_account_id' => $account->id, 'captured_at' => Date::now()->subDay()->setTime(20, 0), 'followers' => 30]);
+    // One reading the next day.
+    AccountMetric::factory()->create(['connected_account_id' => $account->id, 'captured_at' => Date::now()->setTime(9, 0), 'followers' => 40]);
+
+    $this->actingAs($this->user)
+        ->get(route('analytics.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('accounts.0.series', 2)
+            ->where('accounts.0.series.0.followers', 30)
+            ->where('accounts.0.series.1.followers', 40)
+            ->where('accounts.0.latest_followers', 40));
+});
+
+test('the analytics rollup is cached per workspace and range', function (): void {
+    $account = ConnectedAccount::factory()->for($this->workspace)->create();
+    AccountMetric::factory()->create(['connected_account_id' => $account->id, 'captured_at' => Date::now()->subHours(2), 'followers' => 100]);
+
+    $this->actingAs($this->user)->get(route('analytics.index'))->assertOk();
+
+    expect(Cache::has("analytics:{$this->workspace->id}:90"))->toBeTrue();
+
+    // A metric written after the first render is not reflected until the cache expires.
+    AccountMetric::factory()->create(['connected_account_id' => $account->id, 'captured_at' => Date::now(), 'followers' => 999]);
+
+    $this->actingAs($this->user)
+        ->get(route('analytics.index'))
+        ->assertInertia(fn ($page) => $page->where('accounts.0.latest_followers', 100));
 });

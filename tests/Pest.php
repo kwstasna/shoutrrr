@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\WorkspaceRole;
 use App\Models\McpGrantWorkspace;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Models\WorkspaceMembership;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Laravel\Passport\AccessToken;
@@ -66,6 +68,13 @@ function something()
  */
 function bindTokenToWorkspace(User $user, Workspace $workspace): void
 {
+    // A real MCP grant is only ever issued for a workspace the user belongs to
+    // (CaptureMcpWorkspaceSelection verifies membership at consent), so model that.
+    WorkspaceMembership::query()->firstOrCreate(
+        ['workspace_id' => $workspace->id, 'user_id' => $user->id],
+        ['role' => WorkspaceRole::Member],
+    );
+
     $client = Client::factory()->asPersonalAccessTokenClient()->create([
         'provider' => 'users',
         'secret' => Str::random(40),

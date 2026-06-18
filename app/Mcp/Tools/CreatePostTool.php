@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\WorkspaceTool;
+use App\Models\Post;
 use App\Models\User;
 use App\Services\Posts\DraftService;
 use App\Support\PostView;
@@ -23,6 +24,10 @@ class CreatePostTool extends WorkspaceTool
         $workspaceId = $this->bindWorkspace($request);
         if ($workspaceId === null) {
             return Response::error('This connection is not bound to a workspace. Reconnect and select a workspace.');
+        }
+
+        if ($denied = $this->authorize($request, 'create', Post::class)) {
+            return $denied;
         }
 
         $validated = $request->validate([

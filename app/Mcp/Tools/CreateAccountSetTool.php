@@ -25,6 +25,10 @@ class CreateAccountSetTool extends WorkspaceTool
             return Response::error('This connection is not bound to a workspace. Reconnect and select a workspace.');
         }
 
+        if ($denied = $this->authorize($request, 'create', AccountSet::class)) {
+            return $denied;
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'connected_account_ids' => ['array'],

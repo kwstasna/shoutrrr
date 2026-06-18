@@ -34,6 +34,10 @@ class DeletePostTool extends WorkspaceTool
             return Response::error('No post with that id exists in this workspace.');
         }
 
+        if ($denied = $this->authorize($request, 'delete', $post)) {
+            return $denied;
+        }
+
         $hadBeenPublished = in_array($post->status, [PostStatus::Published, PostStatus::Partial, PostStatus::Failed], true);
         $consequence = $hadBeenPublished
             ? 'This will delete the post from its connected accounts where possible.'

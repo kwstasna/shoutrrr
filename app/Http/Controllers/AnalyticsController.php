@@ -11,6 +11,9 @@ use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostTarget;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -23,10 +26,37 @@ class AnalyticsController extends Controller
         abort_unless($request->user()->can('viewAny', Post::class), 403);
 
         $days = max(7, min(365, (int) $request->integer('days', 90)));
+        $workspaceId = (string) Context::get('workspace_id');
+
+        // The rollup only changes when a capture job writes new metrics (a cadence
+        // measured in tens of minutes), so a short TTL avoids recomputing the whole
+        // aggregation on every page view without serving meaningfully stale numbers.
+        $data = Cache::remember(
+            "analytics:{$workspaceId}:{$days}",
+            now()->addMinutes(10),
+            fn (): array => $this->buildPayload($days),
+        );
+
+        return Inertia::render('analytics/index', [
+            ...$data,
+            'rangeDays' => $days,
+        ]);
+    }
+
+    /**
+     * @return array{accounts: array<int, array<string, mixed>>, posts: array<int, array<string, mixed>>, comparison: array{top: array<int, array<string, mixed>>, bottom: array<int, array<string, mixed>>}}
+     */
+    private function buildPayload(int $days): array
+    {
         $from = Date::now()->subDays($days);
 
         $accounts = ConnectedAccount::query()
-            ->with(['metrics' => fn ($q) => $q->where('captured_at', '>=', $from)->orderBy('captured_at')])
+            ->with(['metrics' => fn ($q) => $q
+                ->where('captured_at', '>=', $from)
+                ->orderBy('captured_at')
+                // Drop the per-row `raw` API-response JSON blob — the series only
+                // needs follower/following counts.
+                ->select(['id', 'connected_account_id', 'captured_at', 'followers', 'following'])])
             ->get()
             ->map(fn (ConnectedAccount $account): array => [
                 'id' => $account->id,
@@ -36,11 +66,7 @@ class AnalyticsController extends Controller
                 'avatar_url' => $account->avatar_url,
                 'status' => $account->metrics_status?->value,
                 'latest_followers' => $account->metrics->last()?->followers,
-                'series' => $account->metrics->map(fn (AccountMetric $m): array => [
-                    'at' => $m->captured_at->toIso8601String(),
-                    'followers' => $m->followers,
-                    'following' => $m->following,
-                ])->values()->all(),
+                'series' => $this->downsampleDaily($account->metrics),
             ])->all();
 
         $posts = Post::query()
@@ -80,15 +106,36 @@ class AnalyticsController extends Controller
             ? []
             : $ranked->reverse()->take(5)->values()->all();
 
-        return Inertia::render('analytics/index', [
+        return [
             'accounts' => $accounts,
             'posts' => $markers,
             'comparison' => [
                 'top' => $comparisonTop,
                 'bottom' => $comparisonBottom,
             ],
-            'rangeDays' => $days,
-        ]);
+        ];
+    }
+
+    /**
+     * Collapse a chronologically-ordered metric collection to one point per day
+     * (the last reading of each day), bounding the series sent to the client
+     * regardless of how often metrics are captured.
+     *
+     * @param  Collection<int, AccountMetric>  $metrics
+     * @return array<int, array{at: string, followers: int|null, following: int|null}>
+     */
+    private function downsampleDaily($metrics): array
+    {
+        return $metrics
+            ->groupBy(fn (AccountMetric $m): string => $m->captured_at->toDateString())
+            ->map(fn ($dayMetrics): AccountMetric => $dayMetrics->last())
+            ->map(fn (AccountMetric $m): array => [
+                'at' => $m->captured_at->toIso8601String(),
+                'followers' => $m->followers,
+                'following' => $m->following,
+            ])
+            ->values()
+            ->all();
     }
 
     private function resolveTitle(Post $post): string

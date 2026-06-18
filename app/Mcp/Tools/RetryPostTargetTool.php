@@ -37,6 +37,10 @@ class RetryPostTargetTool extends WorkspaceTool
             return Response::error('No post with that id exists in this workspace.');
         }
 
+        if ($denied = $this->authorize($request, 'update', $post)) {
+            return $denied;
+        }
+
         // Scope the target to this post (and thus this workspace).
         $target = PostTarget::query()->whereKey($validated['target_id'])->where('post_id', $post->id)->first();
         if ($target === null) {

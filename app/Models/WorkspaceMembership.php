@@ -27,6 +27,19 @@ class WorkspaceMembership extends Model
     /** @use HasFactory<WorkspaceMembershipFactory> */
     use HasFactory, HasUuids;
 
+    protected static function booted(): void
+    {
+        // When a user is removed from (or leaves) a workspace, revoke any MCP
+        // workspace grants their OAuth tokens hold for it, so a still-valid token
+        // can't keep acting in a workspace they no longer belong to.
+        static::deleted(function (WorkspaceMembership $membership): void {
+            McpGrantWorkspace::query()
+                ->where('user_id', $membership->user_id)
+                ->where('workspace_id', $membership->workspace_id)
+                ->delete();
+        });
+    }
+
     #[Override]
     protected function casts(): array
     {

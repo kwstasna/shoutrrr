@@ -11,7 +11,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/share/{token}', [PublicShareController::class, 'show'])
-    ->middleware(NoIndex::class)
+    ->middleware([NoIndex::class, 'throttle:30,1'])
     ->name('share.show')
     ->where('token', '[A-Za-z0-9\-]+');
 
