@@ -1,8 +1,10 @@
 <?php
 
 use App\Enums\ErrorKind;
+use App\Enums\Platform;
 use App\Enums\PostTargetStatus;
 use App\Jobs\PublishPostTarget;
+use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostTarget;
 use App\Models\User;
@@ -45,4 +47,42 @@ test('terminal auth-expired failure notifies account-needs-attention instead', f
 
     Notification::assertSentTo($user, AccountNeedsAttentionNotification::class);
     Notification::assertNotSentTo($user, PublishFailedNotification::class);
+});
+
+test('published notification payload identifies the post, platform and account', function () {
+    $user = User::factory()->create();
+    $post = Post::factory()->for($user, 'author')->create(['base_text' => 'Launching our brand new analytics dashboard today']);
+    $account = ConnectedAccount::factory()->create(['platform' => Platform::Bluesky->value, 'handle' => '@acme.bsky.social']);
+    $target = PostTarget::factory()->for($post)->for($account, 'account')->create(['platform' => Platform::Bluesky->value]);
+
+    $payload = (new PostPublishedNotification($target))->toArray($user);
+
+    expect($payload['title'])->toBe('Published to Bluesky')
+        ->and($payload['body'])->toContain('@acme.bsky.social')
+        ->and($payload['body'])->toContain('Launching our brand new analytics dashboard')
+        ->and($payload['href'])->toBe(route('posts.show', $post));
+});
+
+test('failed notification payload identifies the post, platform and account', function () {
+    $user = User::factory()->create();
+    $post = Post::factory()->for($user, 'author')->create(['base_text' => 'Big announcement coming soon']);
+    $account = ConnectedAccount::factory()->create(['platform' => Platform::X->value, 'handle' => '@acme']);
+    $target = PostTarget::factory()->for($post)->for($account, 'account')->create(['platform' => Platform::X->value]);
+
+    $payload = (new PublishFailedNotification($target))->toArray($user);
+
+    expect($payload['title'])->toBe('Failed to publish to X')
+        ->and($payload['body'])->toContain('@acme')
+        ->and($payload['body'])->toContain('Big announcement coming soon')
+        ->and($payload['href'])->toBe(route('posts.show', $post));
+});
+
+test('payload excerpt falls back for media-only posts', function () {
+    $user = User::factory()->create();
+    $post = Post::factory()->for($user, 'author')->create(['base_text' => '']);
+    $target = PostTarget::factory()->for($post)->create();
+
+    $payload = (new PostPublishedNotification($target))->toArray($user);
+
+    expect($payload['body'])->toContain('Media post');
 });

@@ -39,7 +39,7 @@ class AccountNeedsAttentionNotification extends Notification implements ShouldQu
     {
         return $this->databasePayload($this->workspaceId, [
             'event' => NotificationType::AccountNeedsAttention->value,
-            'title' => 'Account needs attention',
+            'title' => $this->account->platform->label().' account needs attention',
             'body' => $this->account->handle.' needs to be reconnected.',
             'href' => route('connections.edit'),
             'icon' => 'plug',

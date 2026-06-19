@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Override;
 
 /**
@@ -100,5 +101,17 @@ class Post extends Model
     public function shares(): HasMany
     {
         return $this->hasMany(PostShare::class);
+    }
+
+    /**
+     * A short, single-line snippet of the post text for notifications and
+     * lists. Collapses runs of whitespace and falls back to a placeholder for
+     * media-only posts that carry no text.
+     */
+    public function excerpt(int $limit = 80): string
+    {
+        $text = trim((string) preg_replace('/\s+/', ' ', $this->base_text));
+
+        return $text === '' ? 'Media post' : Str::limit($text, $limit);
     }
 }
