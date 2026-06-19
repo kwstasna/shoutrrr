@@ -6,7 +6,20 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Support\Facades\Artisan;
 use Laravel\Passport\ClientRepository;
+
+/**
+ * The /oauth/authorize endpoint loads Passport's RSA encryption keys, which are
+ * gitignored (storage/*.key) and absent on a fresh checkout or CI runner. Generate
+ * them when missing so this flow test is hermetic; existing local keys are left
+ * untouched (no --force).
+ */
+beforeEach(function (): void {
+    if (! file_exists(storage_path('oauth-private.key'))) {
+        Artisan::call('passport:keys', ['--no-interaction' => true]);
+    }
+});
 
 /**
  * End-to-end OAuth consent flow:
