@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Dto\Publishing\MediaUploadState;
 use App\Dto\Publishing\PublishContext;
 use App\Dto\Publishing\PublishResult;
 use App\Enums\ErrorKind;
@@ -22,6 +23,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -31,6 +33,11 @@ class PublishPostTarget implements ShouldQueue
 
     private const int MAX_ATTEMPTS = 5;
 
+    private const int MAX_MEDIA_POLLS = 40;
+
+    /** Fallback delay (seconds) between transcode-status polls when the platform gives no hint. */
+    private const int MEDIA_POLL_DELAY = 10;
+
     /**
      * Each publish is its own retry loop (self-dispatched delayed jobs), so the queue
      * worker must not also retry — `tries=1` keeps a transient throw from amplifying
@@ -38,7 +45,12 @@ class PublishPostTarget implements ShouldQueue
      */
     public int $tries = 1;
 
-    public int $timeout = 120;
+    /**
+     * Generous so a large video upload to a platform (streamed inside the first run)
+     * can finish. MUST stay below the queue connection's `retry_after` (see config/queue.php,
+     * default 1200) or a slow run would be released to a second worker and double-post.
+     */
+    public int $timeout = 900;
 
     private const array TERMINAL = [
         PostTargetStatus::Published,
@@ -197,6 +209,12 @@ class PublishPostTarget implements ShouldQueue
 
     private function onFailure(PostTarget $target, PostTargetAttempt $attempt, PublishResult $result, BackoffSchedule $backoff): void
     {
+        if (($result->errorKind ?? null) === ErrorKind::MediaProcessing) {
+            $this->onMediaProcessing($target, $attempt, $result);
+
+            return;
+        }
+
         $kind = $result->errorKind ?? ErrorKind::Unknown;
         $canRetry = $kind->isRetryable() && $target->attempts < self::MAX_ATTEMPTS;
 
@@ -232,5 +250,60 @@ class PublishPostTarget implements ShouldQueue
         ])->save();
 
         $this->notifyFailed($target, $kind);
+    }
+
+    private function onMediaProcessing(PostTarget $target, PostTargetAttempt $attempt, PublishResult $result): void
+    {
+        $state = new MediaUploadState($target->media_upload_state);
+        $polls = $state->incrementPolls();
+
+        if ($polls > self::MAX_MEDIA_POLLS) {
+            Log::warning('Video transcode poll timed out', [
+                'post_target_id' => $target->id,
+                'platform' => $target->platform->value,
+                'polls' => $polls,
+            ]);
+
+            $attempt->forceFill([
+                'status' => 'failed',
+                'error_kind' => ErrorKind::ServerError->value,
+                'error_message' => 'Video processing did not complete in time.',
+                'finished_at' => Date::now(),
+            ])->save();
+
+            $target->forceFill([
+                'status' => PostTargetStatus::Failed->value,
+                'error_kind' => ErrorKind::ServerError->value,
+                'error_message' => 'Video processing did not complete in time.',
+                'media_upload_state' => $state->toArray(),
+                'next_attempt_at' => null,
+            ])->save();
+
+            $this->notifyFailed($target, ErrorKind::ServerError);
+
+            return;
+        }
+
+        // Honor the platform's suggested delay; otherwise poll on a tight fixed cadence
+        // (not the publish backoff, whose 60s base is far too slow for transcode checks).
+        $delay = $result->retryAfter ?? self::MEDIA_POLL_DELAY;
+
+        $attempt->forceFill([
+            'status' => 'retrying',
+            'error_kind' => ErrorKind::MediaProcessing->value,
+            'error_message' => $result->errorMessage,
+            'finished_at' => Date::now(),
+        ])->save();
+
+        $target->forceFill([
+            'status' => PostTargetStatus::Publishing->value,
+            // Transcode polls must not exhaust the publish-failure budget, so neutralize
+            // the attempts++ that handle() applied at the start of this run.
+            'attempts' => max(0, $target->attempts - 1),
+            'media_upload_state' => $state->toArray(),
+            'next_attempt_at' => Date::now()->addSeconds($delay),
+        ])->save();
+
+        self::dispatch($target->fresh())->delay($delay);
     }
 }

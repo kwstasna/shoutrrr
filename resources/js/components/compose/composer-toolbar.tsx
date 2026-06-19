@@ -1,13 +1,12 @@
-import { useHttp } from '@inertiajs/react';
 import { Image as ImageIcon, Shuffle, Split } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
-import PostMediaController from '@/actions/App/Http/Controllers/Posts/PostMediaController';
+import { useMediaUploads } from '@/hooks/compose/use-media-uploads';
 import { cn } from '@/lib/utils';
-import type { MediaView, PlatformName } from '@/types/compose';
+import type { MediaView, PlatformLimits, PlatformName } from '@/types/compose';
 
-import { MediaChips, type PendingUpload } from './media-chips';
+import { MediaChips } from './media-chips';
 
 type Props = {
     /** Active account's platform; undefined on the generic "Post" tab. */
@@ -28,6 +27,9 @@ type Props = {
     onEnsurePost: () => Promise<string>;
     /** Read-only post: show attached media, hide all editing controls. */
     readOnly?: boolean;
+    videoLimits: PlatformLimits[];
+    /** Reports whether any media upload is currently in flight. */
+    onUploadingChange?: (uploading: boolean) => void;
 };
 
 export function ComposerToolbar({
@@ -45,110 +47,31 @@ export function ComposerToolbar({
     onToggleExclude,
     onEnsurePost,
     readOnly = false,
+    videoLimits,
+    onUploadingChange,
 }: Props) {
-    const upload = useHttp<{ file: File | null }, { media: MediaView }>({
-        file: null,
-    });
     const input = useRef<HTMLInputElement | null>(null);
-    const [pending, setPending] = useState<PendingUpload[]>([]);
-    const tempSeq = useRef(0);
-    // Track every object URL we mint so they can be revoked and not leak.
-    const urls = useRef<Set<string>>(new Set());
+    const { pending, isUploading, handleFiles, dismissPending } =
+        useMediaUploads({ media, videoLimits, onEnsurePost, onAddMedia });
 
-    useEffect(
-        () => () => {
-            for (const url of urls.current) {
-                URL.revokeObjectURL(url);
+    // Surface in-flight uploads so the parent can block publish/schedule until
+    // every attachment has finished (a still-uploading file isn't yet in `media`,
+    // so publishing mid-upload would omit it).
+    useEffect(() => {
+        onUploadingChange?.(isUploading);
+    }, [isUploading, onUploadingChange]);
+
+    // Process a picked/dropped batch, then reset the input so re-picking the same
+    // file fires onChange again.
+    function acceptFiles(files: FileList) {
+        void handleFiles(files).finally(() => {
+            if (input.current) {
+                input.current.value = '';
             }
-            urls.current.clear();
-        },
-        [],
-    );
-
-    function mintPreview(file: File): string | undefined {
-        try {
-            if (typeof URL?.createObjectURL !== 'function') {
-                return undefined;
-            }
-            const url = URL.createObjectURL(file);
-            urls.current.add(url);
-
-            return url;
-        } catch {
-            return undefined;
-        }
-    }
-
-    function revoke(url: string | undefined) {
-        if (url && urls.current.delete(url)) {
-            URL.revokeObjectURL(url);
-        }
-    }
-
-    async function uploadFile(file: File) {
-        tempSeq.current += 1;
-        const tempId = `up_${tempSeq.current}`;
-        const previewUrl = mintPreview(file);
-        setPending((cur) => [
-            ...cur,
-            { tempId, previewUrl, status: 'uploading' },
-        ]);
-
-        const id = await onEnsurePost();
-        if (!id) {
-            setPending((cur) =>
-                cur.map((p) =>
-                    p.tempId === tempId ? { ...p, status: 'error' } : p,
-                ),
-            );
-
-            return;
-        }
-
-        // transform injects the file at submit time (multipart upload).
-        upload.transform(() => ({ file }));
-        try {
-            const result = await upload.post(
-                PostMediaController.store(id).url,
-                {
-                    onNetworkError: () => undefined,
-                },
-            );
-            // Prefer the local preview over the server image to avoid a blank
-            // flash, by handing addMedia a media view that points at the blob.
-            onAddMedia(
-                previewUrl
-                    ? { ...result.media, url: previewUrl }
-                    : result.media,
-            );
-            setPending((cur) => cur.filter((p) => p.tempId !== tempId));
-        } catch {
-            setPending((cur) =>
-                cur.map((p) =>
-                    p.tempId === tempId ? { ...p, status: 'error' } : p,
-                ),
-            );
-        }
-    }
-
-    async function handleFiles(files: FileList) {
-        for (const file of Array.from(files)) {
-            await uploadFile(file);
-        }
-        if (input.current) {
-            input.current.value = '';
-        }
-    }
-
-    function dismissPending(tempId: string) {
-        setPending((cur) => {
-            const target = cur.find((p) => p.tempId === tempId);
-            revoke(target?.previewUrl);
-
-            return cur.filter((p) => p.tempId !== tempId);
         });
     }
 
+    const hasVideo = media.some((m) => m.kind === 'video');
     // Count confirmed media plus uploads still in flight so the badge bumps the
     // instant a file is picked, and settles back if an upload fails.
     const mediaCount =
@@ -160,7 +83,7 @@ export function ComposerToolbar({
             onDrop={(e) => {
                 e.preventDefault();
                 if (!readOnly && e.dataTransfer.files.length > 0) {
-                    void handleFiles(e.dataTransfer.files);
+                    acceptFiles(e.dataTransfer.files);
                 }
             }}
             className="flex flex-wrap items-center gap-1.5 border-t border-border bg-muted/50 px-3 pt-2 pb-2.5 sm:px-[14px]"
@@ -170,12 +93,12 @@ export function ComposerToolbar({
                     <input
                         ref={input}
                         type="file"
-                        accept="image/*"
+                        accept={hasVideo ? 'image/*' : 'image/*,video/*'}
                         multiple
                         hidden
                         onChange={(e) => {
                             if (e.target.files && e.target.files.length > 0) {
-                                void handleFiles(e.target.files);
+                                acceptFiles(e.target.files);
                             }
                         }}
                     />

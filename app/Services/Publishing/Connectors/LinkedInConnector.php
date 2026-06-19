@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Publishing\Connectors;
 
+use App\Dto\Publishing\MediaUploadState;
 use App\Dto\Publishing\PublishContext;
 use App\Dto\Publishing\PublishResult;
 use App\Enums\ErrorKind;
@@ -24,6 +25,12 @@ class LinkedInConnector implements PublishConnector
     private const string POSTS_URL = 'https://api.linkedin.com/rest/posts';
 
     private const string IMAGES_URL = 'https://api.linkedin.com/rest/images?action=initializeUpload';
+
+    private const string VIDEOS_INIT_URL = 'https://api.linkedin.com/rest/videos?action=initializeUpload';
+
+    private const string VIDEOS_FINALIZE_URL = 'https://api.linkedin.com/rest/videos?action=finalizeUpload';
+
+    private const string VIDEOS_URL = 'https://api.linkedin.com/rest/videos';
 
     /**
      * Recent LinkedIn versioned-API month. LinkedIn sunsets versions roughly 12 months
@@ -53,9 +60,18 @@ class LinkedInConnector implements PublishConnector
         $author = 'urn:li:person:'.$context->account->remote_account_id;
         $text = $context->segments[0] ?? '';
 
-        try {
-            $images = $this->uploadImages($context->media, $author, $token);
+        $videoMedia = array_values(array_filter($context->media, fn (PostMedia $m): bool => $m->isVideo()));
+        $videoUrn = null;
 
+        if ($videoMedia !== []) {
+            $ready = $this->ensureVideoReady($context, $videoMedia[0], $author, $token);
+            if (! $ready->isSuccessful()) {
+                return $ready;
+            }
+            $videoUrn = (string) $ready->remoteIds[0];
+        }
+
+        try {
             $body = [
                 'author' => $author,
                 'commentary' => $text,
@@ -68,17 +84,23 @@ class LinkedInConnector implements PublishConnector
                 ],
             ];
 
-            if (count($images) === 1) {
-                $body['content'] = ['media' => ['id' => $images[0]['urn'], 'altText' => $images[0]['altText']]];
-            } elseif (count($images) > 1) {
-                $body['content'] = [
-                    'multiImage' => [
-                        'images' => array_map(
-                            fn (array $image): array => ['id' => $image['urn'], 'altText' => $image['altText']],
-                            $images,
-                        ),
-                    ],
-                ];
+            if ($videoUrn !== null) {
+                $body['content'] = ['media' => ['id' => $videoUrn, 'title' => '']];
+            } else {
+                $images = $this->uploadImages($context->media, $author, $token);
+
+                if (count($images) === 1) {
+                    $body['content'] = ['media' => ['id' => $images[0]['urn'], 'altText' => $images[0]['altText']]];
+                } elseif (count($images) > 1) {
+                    $body['content'] = [
+                        'multiImage' => [
+                            'images' => array_map(
+                                fn (array $image): array => ['id' => $image['urn'], 'altText' => $image['altText']],
+                                $images,
+                            ),
+                        ],
+                    ];
+                }
             }
 
             $response = $this->http
@@ -145,6 +167,105 @@ class LinkedInConnector implements PublishConnector
         }
 
         return $images;
+    }
+
+    private function ensureVideoReady(PublishContext $context, PostMedia $media, string $author, string $token): PublishResult
+    {
+        $state = new MediaUploadState($context->target->media_upload_state);
+        $urn = $state->remoteRef($media->id);
+
+        try {
+            if ($urn === null) {
+                $urn = $this->uploadVideo($media, $author, $token);
+                $state->markUploaded($media->id, $urn);
+                $context->target->forceFill(['media_upload_state' => $state->toArray()])->save();
+            }
+
+            $status = $this->http->withToken($token)
+                ->withHeaders(['LinkedIn-Version' => $this->apiVersion(), 'X-Restli-Protocol-Version' => '2.0.0'])
+                ->acceptJson()
+                ->get(self::VIDEOS_URL.'/'.rawurlencode($urn));
+
+            if ($status->failed()) {
+                $kind = $this->classifyStatus($status->status());
+                if (in_array($kind, [ErrorKind::ServerError, ErrorKind::RateLimited], true)) {
+                    // A transient failure to CHECK status is not a publish failure — treat it as
+                    // "still processing, try again" so it uses the media-poll budget, not the
+                    // 5-attempt publish-failure budget.
+                    return PublishResult::failure(
+                        ErrorKind::MediaProcessing,
+                        'Could not check video processing status; will retry.',
+                        retryAfter: $this->retryAfter($status) ?? 6,
+                    );
+                }
+
+                // Non-transient (auth/validation/etc.) — surface as a real failure.
+                return $this->mapFailure($status);
+            }
+
+            $videoStatus = (string) $status->json('status', 'AVAILABLE');
+
+            if ($videoStatus === 'PROCESSING_FAILED') {
+                return PublishResult::failure(ErrorKind::ServerError, 'LinkedIn failed to process the video.');
+            }
+
+            if ($videoStatus !== 'AVAILABLE') {
+                return PublishResult::failure(ErrorKind::MediaProcessing, 'Video is still processing on LinkedIn.', retryAfter: 10);
+            }
+
+            return PublishResult::success([$urn]);
+        } catch (LinkedInRequestFailed $e) {
+            return $this->mapFailure($e->response);
+        }
+    }
+
+    private function uploadVideo(PostMedia $media, string $author, string $token): string
+    {
+        $disk = Storage::disk($media->disk);
+        $total = (int) $disk->size($media->path);
+        $headers = ['LinkedIn-Version' => $this->apiVersion(), 'X-Restli-Protocol-Version' => '2.0.0'];
+
+        $init = $this->http->withToken($token)->withHeaders($headers)->acceptJson()
+            ->post(self::VIDEOS_INIT_URL, [
+                'initializeUploadRequest' => ['owner' => $author, 'fileSizeBytes' => $total],
+            ]);
+        if ($init->failed()) {
+            throw new LinkedInRequestFailed($init);
+        }
+
+        $urn = (string) $init->json('value.video');
+        $uploadToken = (string) $init->json('value.uploadToken', '');
+        /** @var list<array{uploadUrl: string, firstByte: int, lastByte: int}> $instructions */
+        $instructions = (array) $init->json('value.uploadInstructions', []);
+
+        // Stream each part's byte range from disk; never hold the whole file.
+        $etags = [];
+        $stream = $disk->readStream($media->path);
+        try {
+            foreach ($instructions as $instruction) {
+                $first = (int) $instruction['firstByte'];
+                $length = (int) $instruction['lastByte'] - $first + 1;
+                fseek($stream, $first);
+                $part = (string) stream_get_contents($stream, $length);
+                $put = $this->http->withToken($token)->withBody($part, 'application/octet-stream')->put($instruction['uploadUrl']);
+                if ($put->failed()) {
+                    throw new LinkedInRequestFailed($put);
+                }
+                $etags[] = (string) $put->header('etag');
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        $finalize = $this->http->withToken($token)->withHeaders($headers)->acceptJson()
+            ->post(self::VIDEOS_FINALIZE_URL, [
+                'finalizeUploadRequest' => ['video' => $urn, 'uploadToken' => $uploadToken, 'uploadedPartIds' => $etags],
+            ]);
+        if ($finalize->failed()) {
+            throw new LinkedInRequestFailed($finalize);
+        }
+
+        return $urn;
     }
 
     public function delete(PostTarget $target, array $credentials): void
