@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CommandSearchController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PublicShareController;
@@ -23,6 +24,9 @@ Route::middleware('auth')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::get('command-search', CommandSearchController::class)
+        ->middleware('throttle:60,1')
+        ->name('command-search');
 });
 
 require __DIR__.'/workspace.php';

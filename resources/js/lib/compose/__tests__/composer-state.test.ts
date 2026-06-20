@@ -8,6 +8,7 @@ import {
     composerReducer,
     firstLineTitle,
     initialComposerState,
+    parseDestinationParam,
     pickActiveAccount,
 } from '../composer-state';
 
@@ -671,6 +672,39 @@ describe('composerHasContent', () => {
             text: '   ',
         });
         expect(composerHasContent(state)).toBe(false);
+    });
+});
+
+describe('parseDestinationParam', () => {
+    it('parses all / account / set', () => {
+        expect(parseDestinationParam('all')).toEqual({ kind: 'all' });
+        expect(parseDestinationParam('account:abc')).toEqual({
+            kind: 'account',
+            id: 'abc',
+        });
+        expect(parseDestinationParam('set:xyz')).toEqual({
+            kind: 'set',
+            id: 'xyz',
+        });
+    });
+
+    it('returns null for junk or missing input', () => {
+        expect(parseDestinationParam(null)).toBeNull();
+        expect(parseDestinationParam('nope')).toBeNull();
+        expect(parseDestinationParam('account:')).toBeNull();
+    });
+});
+
+describe('initialComposerState with a destination', () => {
+    it('seeds the destination', () => {
+        expect(
+            initialComposerState(null, { kind: 'account', id: 'abc' })
+                .destination,
+        ).toEqual({ kind: 'account', id: 'abc' });
+    });
+
+    it('defaults to all', () => {
+        expect(initialComposerState().destination).toEqual({ kind: 'all' });
     });
 });
 

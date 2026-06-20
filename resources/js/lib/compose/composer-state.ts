@@ -77,10 +77,13 @@ export function pickActiveAccount(
 /**
  * Build a fresh composer state. When `scheduleAt` (an ISO string) is given, the
  * schedule tray opens pre-set to "Pick time" at that instant — used when the
- * composer is opened from a calendar slot click.
+ * composer is opened from a calendar slot click. When `initialDestination` is
+ * given, the destination selector is pre-seeded (e.g. from a ?destination= query
+ * param set by the command palette's "compose for channel" action).
  */
 export function initialComposerState(
     scheduleAt: string | null = null,
+    initialDestination: Destination | null = null,
 ): ComposerState {
     return {
         postId: null,
@@ -88,7 +91,7 @@ export function initialComposerState(
         saveState: 'idle',
         baselineUpdatedAt: null,
         baseText: '',
-        destination: { kind: 'all' },
+        destination: initialDestination ?? { kind: 'all' },
         autoSplitByAccount: {},
         overrideByAccount: {},
         mediaSubsetExcludes: new Set(),
@@ -98,6 +101,26 @@ export function initialComposerState(
             : { mode: 'now', pickedAt: null },
         conflict: null,
     };
+}
+
+/**
+ * Parse the `?destination=` query-param value produced by the command palette's
+ * "compose for channel" action. Returns null for any unrecognised input so the
+ * composer falls back to its default `{ kind: 'all' }` destination.
+ */
+export function parseDestinationParam(raw: string | null): Destination | null {
+    if (!raw) {
+        return null;
+    }
+    if (raw === 'all') {
+        return { kind: 'all' };
+    }
+    const [kind, id] = raw.split(':');
+    if ((kind === 'account' || kind === 'set') && id) {
+        return { kind, id };
+    }
+
+    return null;
 }
 
 function hydrate(post: PostView): ComposerState {

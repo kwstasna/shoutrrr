@@ -7,6 +7,7 @@ import { GettingStartedCard } from '@/components/onboarding/getting-started-card
 import { WelcomeModal } from '@/components/onboarding/welcome-modal';
 import type { PostRowData } from '@/components/posts/post-row';
 import { RecentFeedSkeleton } from '@/components/skeletons/recent-feed-skeleton';
+import { parseDestinationParam } from '@/lib/compose/composer-state';
 import { dashboard } from '@/routes';
 import type { OnboardingData } from '@/types';
 
@@ -41,6 +42,12 @@ export default function Dashboard({ posts, onboarding }: Props) {
         'http://localhost',
     ).searchParams.get('schedule_at');
 
+    // A command-palette "compose for channel" action navigates here with
+    // ?destination=account:<id> or ?destination=set:<id>.
+    const initialDestination = parseDestinationParam(
+        new URL(page.url, 'http://localhost').searchParams.get('destination'),
+    );
+
     return (
         <>
             <Head title="Dashboard" />
@@ -69,6 +76,7 @@ export default function Dashboard({ posts, onboarding }: Props) {
                     sets={shell.sets}
                     limits={shell.limits}
                     initialScheduleAt={initialScheduleAt}
+                    initialDestination={initialDestination}
                 />
 
                 <Deferred data="posts" fallback={<RecentFeedSkeleton />}>

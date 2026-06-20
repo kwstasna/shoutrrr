@@ -18,6 +18,7 @@ import {
     BASE_TAB,
     type Account,
     type AccountSet,
+    type Destination,
     type PlatformLimits,
     type PlatformName,
     type PostView,
@@ -41,6 +42,8 @@ type ComposerProps = {
     limits: PlatformLimits[];
     /** ISO time to pre-arm the schedule tray with (e.g. from a calendar slot click). */
     initialScheduleAt?: string | null;
+    /** Seed the destination for a brand-new post (e.g. compose-for-channel). */
+    initialDestination?: Destination | null;
 };
 
 function accountIdsFor(
@@ -72,6 +75,7 @@ export default function Composer({
     sets,
     limits,
     initialScheduleAt = null,
+    initialDestination = null,
 }: ComposerProps) {
     const schedulingTz = useSchedulingTimezone();
     // True while any attachment is still uploading — blocks publish/schedule.
@@ -82,7 +86,7 @@ export default function Composer({
                   type: 'hydrate',
                   post: p,
               })
-            : initialComposerState(initialScheduleAt),
+            : initialComposerState(initialScheduleAt, initialDestination),
     );
 
     // Inertia reuses this component across same-page visits (no remount), so
