@@ -10,6 +10,7 @@ import {
     initialComposerState,
     parseDestinationParam,
     pickActiveAccount,
+    shouldShowConnectAccountPrompt,
 } from '../composer-state';
 
 function account(id: string): Account {
@@ -94,6 +95,18 @@ describe('pickActiveAccount', () => {
 
     it('returns null when there are no accounts (genuine connect-an-account state)', () => {
         expect(pickActiveAccount([], BASE_TAB)).toBeNull();
+    });
+});
+
+describe('shouldShowConnectAccountPrompt', () => {
+    it('shows the nudge only when the workspace has no connected accounts', () => {
+        expect(shouldShowConnectAccountPrompt([], null)).toBe(true);
+        expect(shouldShowConnectAccountPrompt([account('a1')], null)).toBe(
+            false,
+        );
+        expect(
+            shouldShowConnectAccountPrompt([account('a1')], account('a1')),
+        ).toBe(false);
     });
 });
 

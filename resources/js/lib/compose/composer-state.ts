@@ -75,6 +75,17 @@ export function pickActiveAccount(
 }
 
 /**
+ * The connect-account nudge is a workspace-level empty state. Do not show it
+ * just because the current destination resolves to no active tab/accounts.
+ */
+export function shouldShowConnectAccountPrompt(
+    accounts: Account[],
+    activeAccount: Account | null,
+): boolean {
+    return accounts.length === 0 && activeAccount === null;
+}
+
+/**
  * Build a fresh composer state. When `scheduleAt` (an ISO string) is given, the
  * schedule tray opens pre-set to "Pick time" at that instant — used when the
  * composer is opened from a calendar slot click. When `initialDestination` is

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ConnectedAccount;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
@@ -32,10 +33,19 @@ test('welcomed endpoint stamps the current workspace', function () {
 
 test('dismiss endpoint stamps the current workspace', function () {
     $user = onboardingActor();
+    ConnectedAccount::factory()->create(['workspace_id' => $user->current_workspace_id]);
 
     $this->actingAs($user)->post(route('onboarding.dismiss'))->assertRedirect();
 
     expect($user->currentWorkspace->fresh()->onboarding_dismissed_at)->not->toBeNull();
+});
+
+test('dismiss endpoint is blocked until an account is connected', function () {
+    $user = onboardingActor();
+
+    $this->actingAs($user)->post(route('onboarding.dismiss'))->assertStatus(409);
+
+    expect($user->currentWorkspace->fresh()->onboarding_dismissed_at)->toBeNull();
 });
 
 test('welcomed with connect redirects to accounts and stamps the workspace', function () {

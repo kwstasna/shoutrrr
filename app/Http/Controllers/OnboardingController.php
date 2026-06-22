@@ -29,9 +29,11 @@ class OnboardingController extends Controller
 
     public function dismiss(Request $request): RedirectResponse
     {
-        $this->currentWorkspace($request)
-            ->forceFill(['onboarding_dismissed_at' => now()])
-            ->save();
+        $workspace = $this->currentWorkspace($request);
+
+        abort_unless($workspace->connectedAccounts()->exists(), 409);
+
+        $workspace->forceFill(['onboarding_dismissed_at' => now()])->save();
 
         return back();
     }

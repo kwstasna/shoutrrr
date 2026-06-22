@@ -10,6 +10,7 @@ import {
     composerReducer,
     initialComposerState,
     pickActiveAccount,
+    shouldShowConnectAccountPrompt,
     type ComposerState,
 } from '@/lib/compose/composer-state';
 import { postCapabilities } from '@/lib/posts/capabilities';
@@ -152,6 +153,10 @@ export default function Composer({
     const readOnly = post !== null && !postCapabilities(post).canEdit;
 
     const activeAccount = pickActiveAccount(tabAccounts, state.activeTab);
+    const showConnectAccountPrompt = shouldShowConnectAccountPrompt(
+        accounts,
+        activeAccount,
+    );
     const activeText =
         activeAccount && state.overrideByAccount[activeAccount.id] !== undefined
             ? (state.overrideByAccount[activeAccount.id] as string)
@@ -296,7 +301,7 @@ export default function Composer({
                     sectionTotal={activeSectionTotal}
                     state={severityFor(activeAccount.id)}
                 />
-            ) : (
+            ) : showConnectAccountPrompt ? (
                 <div className="px-4 pb-3.5 sm:px-[26px]">
                     <Link
                         href={accountsRoute().url}
@@ -306,7 +311,7 @@ export default function Composer({
                         Connect an account to publish
                     </Link>
                 </div>
-            )}
+            ) : null}
 
             {/* Toolbar — editing controls when editable; just the attached
                 media when read-only (skipped entirely if there's none). */}

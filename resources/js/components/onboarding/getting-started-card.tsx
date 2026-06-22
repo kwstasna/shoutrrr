@@ -62,6 +62,13 @@ function setCollapsed(value: boolean): void {
     collapseListeners.forEach((listener) => listener());
 }
 
+export function canDismissOnboarding(onboarding: OnboardingData): boolean {
+    return (
+        onboarding.steps.find((step) => step.key === 'connect_account')?.done ??
+        false
+    );
+}
+
 export function GettingStartedCard({
     onboarding,
 }: {
@@ -95,6 +102,7 @@ export function GettingStartedCard({
     const done = onboarding.steps.filter((s) => s.done).length;
     const total = onboarding.steps.length;
     const nextKey = onboarding.steps.find((s) => !s.done)?.key;
+    const canDismiss = canDismissOnboarding(onboarding);
 
     return (
         <section className="mb-7 rounded-xl border bg-card p-5 shadow-xs">
@@ -127,14 +135,16 @@ export function GettingStartedCard({
                             )}
                         />
                     </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={dismiss}
-                        aria-label="Dismiss"
-                    >
-                        <X className="size-4" />
-                    </Button>
+                    {canDismiss && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={dismiss}
+                            aria-label="Dismiss"
+                        >
+                            <X className="size-4" />
+                        </Button>
+                    )}
                 </div>
             </div>
 

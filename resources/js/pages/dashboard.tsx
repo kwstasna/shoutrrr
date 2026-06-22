@@ -16,6 +16,12 @@ type Props = {
     onboarding: OnboardingData | null;
 };
 
+export function shouldShowDashboardPublishingSection(
+    accounts: unknown[],
+): boolean {
+    return accounts.length > 0;
+}
+
 function timeGreeting(): string {
     const hour = new Date().getHours();
     if (hour < 5) {
@@ -35,6 +41,9 @@ export default function Dashboard({ posts, onboarding }: Props) {
     const page = usePage();
     const { auth, shell } = page.props;
     const firstName = (auth.user?.name ?? '').split(/\s+/)[0] || 'there';
+    const showPublishingSection = shouldShowDashboardPublishingSection(
+        shell.accounts,
+    );
 
     // A calendar slot click opens the composer here with a pre-set schedule time.
     const initialScheduleAt = new URL(
@@ -70,18 +79,25 @@ export default function Dashboard({ posts, onboarding }: Props) {
 
                 {onboarding && <GettingStartedCard onboarding={onboarding} />}
 
-                <Composer
-                    post={null}
-                    accounts={shell.accounts}
-                    sets={shell.sets}
-                    limits={shell.limits}
-                    initialScheduleAt={initialScheduleAt}
-                    initialDestination={initialDestination}
-                />
+                {showPublishingSection && (
+                    <>
+                        <Composer
+                            post={null}
+                            accounts={shell.accounts}
+                            sets={shell.sets}
+                            limits={shell.limits}
+                            initialScheduleAt={initialScheduleAt}
+                            initialDestination={initialDestination}
+                        />
 
-                <Deferred data="posts" fallback={<RecentFeedSkeleton />}>
-                    <RecentFeed posts={posts ?? []} />
-                </Deferred>
+                        <Deferred
+                            data="posts"
+                            fallback={<RecentFeedSkeleton />}
+                        >
+                            <RecentFeed posts={posts ?? []} />
+                        </Deferred>
+                    </>
+                )}
             </div>
         </>
     );
