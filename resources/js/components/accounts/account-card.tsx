@@ -25,12 +25,9 @@ import type { Account } from './types';
 
 /** Per-platform brand accent for the glyph tile (encodes which network it is). */
 const PLATFORM_BRAND: Record<string, { tile: string; glyph: string }> = {
-    x: { tile: 'bg-foreground/5', glyph: 'text-foreground' },
-    linkedin: {
-        tile: 'bg-blue-500/10',
-        glyph: 'text-blue-600 dark:text-blue-400',
-    },
-    bluesky: { tile: 'bg-sky-500/10', glyph: 'text-sky-500' },
+    x: { tile: 'bg-white', glyph: 'text-black!' },
+    linkedin: { tile: 'bg-blue-600', glyph: 'text-white!' },
+    bluesky: { tile: 'bg-sky-500', glyph: 'text-white!' },
 };
 
 const PLATFORM_FALLBACK = { tile: 'bg-muted', glyph: 'text-muted-foreground' };
@@ -151,6 +148,7 @@ export function AccountCard({
                             <PlatformGlyph
                                 platform={account.platform as PlatformName}
                                 size={11}
+                                className={brand.glyph}
                             />
                         </span>
                     </div>

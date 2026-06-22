@@ -16,12 +16,9 @@ import type { Account, AccountSet, Destination } from '@/types/compose';
 
 /** Per-platform brand accent for the glyph badge (mirrors the accounts page). */
 const PLATFORM_BRAND: Record<string, { tile: string; glyph: string }> = {
-    x: { tile: 'bg-foreground/5', glyph: 'text-foreground' },
-    linkedin: {
-        tile: 'bg-blue-500/10',
-        glyph: 'text-blue-600 dark:text-blue-400',
-    },
-    bluesky: { tile: 'bg-sky-500/10', glyph: 'text-sky-500' },
+    x: { tile: 'bg-white', glyph: 'text-black!' },
+    linkedin: { tile: 'bg-blue-600', glyph: 'text-white!' },
+    bluesky: { tile: 'bg-sky-500', glyph: 'text-white!' },
 };
 
 const PLATFORM_FALLBACK = { tile: 'bg-muted', glyph: 'text-muted-foreground' };
@@ -56,7 +53,7 @@ function AccountVisual({ account }: { account: Account }) {
                     class-less svg to size-4 (16px). */}
                 <PlatformGlyph
                     platform={account.platform}
-                    className="size-1.5"
+                    className={cn('size-1.5', brand.glyph)}
                 />
             </span>
         </span>

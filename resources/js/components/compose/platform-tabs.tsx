@@ -2,6 +2,14 @@ import { PlatformGlyph } from '@/components/common/platform-glyph';
 import { cn } from '@/lib/utils';
 import { BASE_TAB, type Account } from '@/types/compose';
 
+const PLATFORM_BRAND: Record<string, { tile: string; glyph: string }> = {
+    x: { tile: 'bg-white', glyph: 'text-black!' },
+    linkedin: { tile: 'bg-blue-600', glyph: 'text-white!' },
+    bluesky: { tile: 'bg-sky-500', glyph: 'text-white!' },
+};
+
+const PLATFORM_FALLBACK = { tile: 'bg-muted', glyph: 'text-muted-foreground' };
+
 type PlatformTabsProps = {
     /** One tab per destination account. Empty → a single generic "Post" tab. */
     accounts: Account[];
@@ -68,6 +76,8 @@ export default function PlatformTabs({
                 const isActive = account.id === activeTab;
                 const severity = stateFor(account.id);
                 const overridden = hasOverride(account.id);
+                const brand =
+                    PLATFORM_BRAND[account.platform] ?? PLATFORM_FALLBACK;
 
                 return (
                     <button
@@ -84,14 +94,14 @@ export default function PlatformTabs({
                         <span
                             className={cn(
                                 'grid size-[18px] place-items-center rounded-[5px]',
-                                isActive
-                                    ? 'bg-foreground text-background'
-                                    : 'bg-muted text-foreground',
+                                brand.tile,
+                                brand.glyph,
                             )}
                         >
                             <PlatformGlyph
                                 platform={account.platform}
                                 size={11}
+                                className={brand.glyph}
                             />
                         </span>
                         <span>{account.handle}</span>
