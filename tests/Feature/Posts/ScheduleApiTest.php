@@ -95,6 +95,28 @@ test('PUT /posts/{post}/schedule reschedules a missed post back to scheduled', f
     expect($post->scheduled_at->toIso8601String())->toBe('2030-01-01T09:00:00+00:00');
 });
 
+test('PUT /posts/{post}/schedule redirects after an Inertia reschedule request', function () {
+    [$user, $workspace] = schedulingMember();
+    $post = Post::factory()->create([
+        'workspace_id' => $workspace->id,
+        'status' => PostStatus::Scheduled,
+        'scheduled_at' => now()->addDay(),
+    ]);
+
+    test()->from('/dashboard')
+        ->put("/posts/{$post->id}/schedule", [
+            'scheduled_at' => '2030-01-01T09:00:00+00:00',
+        ], [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => 'test',
+        ])
+        ->assertRedirect('/dashboard');
+
+    $post->refresh();
+    expect($post->status)->toBe(PostStatus::Scheduled);
+    expect($post->scheduled_at->toIso8601String())->toBe('2030-01-01T09:00:00+00:00');
+});
+
 test('a member cannot schedule a post in another workspace', function () {
     [$user, $workspace] = schedulingMember();
     $foreign = Post::factory()->create(); // different workspace
