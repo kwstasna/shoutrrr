@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "setup": "composer install",
+    "teardown": null,
+    "run": "composer dev"
+  },
+  "ports": [
+    {
+      "port": 8000,
+      "label": "Shoutrrr"
+    }
+  ]
+}
