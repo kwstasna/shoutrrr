@@ -65,6 +65,23 @@ test('per-target retry resets a failed target to pending and dispatches it', fun
     Bus::assertDispatched(PublishPostTarget::class, fn (PublishPostTarget $job): bool => $job->target->is($target));
 });
 
+test('per-target retry redirects after an Inertia retry request', function () {
+    Bus::fake();
+    [$user, $workspace] = publishingMember();
+    $post = Post::factory()->create(['workspace_id' => $workspace->id, 'status' => PostStatus::Failed]);
+    $target = PostTarget::factory()->for($post)->failed()->create();
+
+    test()->from('/dashboard')
+        ->post("/posts/{$post->id}/targets/{$target->id}/retry", [], [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => 'test',
+        ])
+        ->assertRedirect('/dashboard');
+
+    expect($target->refresh()->status)->toBe(PostTargetStatus::Pending);
+    Bus::assertDispatched(PublishPostTarget::class, fn (PublishPostTarget $job): bool => $job->target->is($target));
+});
+
 test('retry rejects a non-failed target with 409 and dispatches nothing', function () {
     Bus::fake();
     [$user, $workspace] = publishingMember();
