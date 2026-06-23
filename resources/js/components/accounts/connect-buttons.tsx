@@ -1,15 +1,11 @@
 import { Form } from '@inertiajs/react';
-import {
-    AtSign,
-    BriefcaseBusiness,
-    ChevronDown,
-    X as XIcon,
-} from 'lucide-react';
+import { AtSign, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import BlueskyConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/BlueskyConnectionController';
 import OAuthConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/OAuthConnectionController';
 import InputError from '@/components/common/input-error';
+import { PlatformGlyph } from '@/components/common/platform-glyph';
 import { Button } from '@/components/ui/button';
 import {
     Collapsible,
@@ -27,21 +23,27 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { PlatformName } from '@/types/compose';
 
 import type { Capability } from './types';
 
 export const ADVANCED_SERVICE_URL_TRIGGER_CLASS =
     '[&[data-state=open]_svg]:rotate-180';
 
+const SUPPORTED_PLATFORM_ICONS = ['x', 'bluesky', 'linkedin'];
+
+export function isSupportedPlatformIcon(
+    platform: string,
+): platform is PlatformName {
+    return SUPPORTED_PLATFORM_ICONS.includes(platform);
+}
+
 function platformIcon(platform: string) {
-    switch (platform) {
-        case 'x':
-            return <XIcon className="size-4" />;
-        case 'linkedin':
-            return <BriefcaseBusiness className="size-4" />;
-        default:
-            return <AtSign className="size-4" />;
+    if (!isSupportedPlatformIcon(platform)) {
+        return <AtSign className="size-4" />;
     }
+
+    return <PlatformGlyph platform={platform} size={16} className="size-4" />;
 }
 
 function BlueskyConnectDialog() {
@@ -54,7 +56,7 @@ function BlueskyConnectDialog() {
                     variant="outline"
                     className="w-full justify-center sm:w-auto"
                 >
-                    <AtSign className="size-4" />
+                    {platformIcon('bluesky')}
                     Connect Bluesky
                 </Button>
             </DialogTrigger>
