@@ -32,6 +32,13 @@ export function computeMonthDrop(
         .format('YYYY-MM-DDTHH:mm:ss[Z]');
 }
 
+export function shouldOpenEmptyMonthDay(
+    empty: boolean,
+    isPast: boolean,
+): boolean {
+    return empty && !isPast;
+}
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function MonthGrid({
@@ -109,9 +116,10 @@ function DayCell({
     const overflow = posts.length - visible.length;
     const empty = posts.length === 0;
     const dimmed = !inMonth || isPast;
+    const canOpenEmptyDay = shouldOpenEmptyMonthDay(empty, isPast);
 
     const handleActivate = () => {
-        if (empty && !isPast) onEmptyClick();
+        if (canOpenEmptyDay) onEmptyClick();
     };
 
     return (
@@ -122,7 +130,10 @@ function DayCell({
             tabIndex={isPast ? -1 : 0}
             aria-label={`Day ${day.format('YYYY-MM-DD')}`}
             onClick={(e) => {
-                if (empty && !(e.target as HTMLElement).closest('button'))
+                if (
+                    canOpenEmptyDay &&
+                    !(e.target as HTMLElement).closest('button')
+                )
                     onEmptyClick();
             }}
             onKeyDown={(e) => {
@@ -136,7 +147,7 @@ function DayCell({
                 'focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                 isPast && 'bg-muted/40',
                 isToday && 'bg-primary/5',
-                empty && !isPast && 'cursor-pointer hover:bg-accent/40',
+                canOpenEmptyDay && 'cursor-pointer hover:bg-accent/40',
                 isOver && 'ring-2 ring-primary/60 ring-inset',
             )}
         >
@@ -152,7 +163,7 @@ function DayCell({
                     >
                         {day.date()}
                     </span>
-                    {empty && !isPast && (
+                    {canOpenEmptyDay && (
                         <span
                             aria-hidden
                             className="text-[14px] leading-none text-muted-foreground opacity-0 transition-opacity group-hover/day:opacity-60"

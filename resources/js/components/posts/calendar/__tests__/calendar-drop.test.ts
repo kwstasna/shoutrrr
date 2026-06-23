@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeMonthDrop } from '@/components/posts/calendar/month-grid';
+import {
+    computeMonthDrop,
+    shouldOpenEmptyMonthDay,
+} from '@/components/posts/calendar/month-grid';
 import { computeWeekDrop } from '@/components/posts/calendar/week-grid';
+
+describe('calendar day activation', () => {
+    it('does not open an empty month day in the past', () => {
+        expect(shouldOpenEmptyMonthDay(true, true)).toBe(false);
+    });
+
+    it('opens only empty future or current month days', () => {
+        expect(shouldOpenEmptyMonthDay(true, false)).toBe(true);
+        expect(shouldOpenEmptyMonthDay(false, false)).toBe(false);
+    });
+});
 
 describe('calendar drop math', () => {
     it('month drop keeps the time-of-day, swaps the date', () => {
