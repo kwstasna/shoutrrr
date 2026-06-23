@@ -40,8 +40,8 @@ export default function Instance({ settings, workspaces_enabled }: PageProps) {
             <div className="space-y-6">
                 <Heading
                     variant="small"
-                    title="Instance"
-                    description="Manage settings that affect every user on this self-hosted instance"
+                    title="General"
+                    description="Control signups and workspace creation for this instance"
                 />
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -105,11 +105,7 @@ export default function Instance({ settings, workspaces_enabled }: PageProps) {
 Instance.layout = {
     breadcrumbs: [
         {
-            title: 'Workspace settings',
-            href: '/settings/workspace',
-        },
-        {
-            title: 'Instance',
+            title: 'Instance settings',
             href: InstanceSettingsController.edit().url,
         },
     ],

@@ -1,7 +1,7 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 
-import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
+import InstanceSettingsController from '@/actions/App/Http/Controllers/Settings/InstanceSettingsController';
 import Heading from '@/components/common/heading';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -9,21 +9,15 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
-export default function WorkspaceSettingsLayout({
+export default function InstanceSettingsLayout({
     children,
 }: PropsWithChildren) {
-    const { isCurrentOrParentUrl, isCurrentUrl } = useCurrentUrl();
-    const { workspaces } = usePage().props;
+    const { isCurrentOrParentUrl } = useCurrentUrl();
 
     const sidebarNavItems: NavItem[] = [
         {
-            title: 'Overview',
-            href: WorkspaceSettingsController.showOverview(),
-            icon: null,
-        },
-        {
-            title: 'Members',
-            href: WorkspaceSettingsController.showMembers(),
+            title: 'General',
+            href: InstanceSettingsController.edit(),
             icon: null,
         },
     ];
@@ -31,19 +25,15 @@ export default function WorkspaceSettingsLayout({
     return (
         <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6">
             <Heading
-                title="Workspace settings"
-                description={
-                    workspaces.current
-                        ? `Manage ${workspaces.current.name} and its members`
-                        : 'Manage your workspace and its members'
-                }
+                title="Instance settings"
+                description="Manage settings that affect every user on this self-hosted instance"
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">
                 <aside className="w-full max-w-xl lg:w-48">
                     <nav
                         className="flex flex-col space-y-1 space-x-0"
-                        aria-label="Workspace settings"
+                        aria-label="Instance settings"
                     >
                         {sidebarNavItems.map((item, index) => (
                             <Button
@@ -52,10 +42,7 @@ export default function WorkspaceSettingsLayout({
                                 variant="ghost"
                                 asChild
                                 className={cn('w-full justify-start', {
-                                    'bg-muted':
-                                        item.title === 'Overview'
-                                            ? isCurrentUrl(item.href)
-                                            : isCurrentOrParentUrl(item.href),
+                                    'bg-muted': isCurrentOrParentUrl(item.href),
                                 })}
                             >
                                 <Link href={item.href}>
