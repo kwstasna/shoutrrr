@@ -3,11 +3,15 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { workspaceSettingsLabel } from '../app-sidebar';
+import { instanceSettingsLabel, workspaceSettingsLabel } from '../app-sidebar';
 
 describe('workspaceSettingsLabel', () => {
     it('identifies the sidebar destination as workspace settings', () => {
         expect(workspaceSettingsLabel).toBe('Workspace settings');
+    });
+
+    it('identifies the owner-only instance settings destination', () => {
+        expect(instanceSettingsLabel).toBe('Instance settings');
     });
 });
 

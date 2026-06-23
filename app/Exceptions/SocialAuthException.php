@@ -40,4 +40,9 @@ final class SocialAuthException extends Exception
             "We could not complete your {$providerLabel} sign-in. Please try again.",
         );
     }
+
+    public static function registrationsDisabled(): self
+    {
+        return new self('Registration is disabled for this instance.');
+    }
 }

@@ -9,6 +9,7 @@ use App\Exceptions\SocialAuthException;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Services\Workspace\WorkspaceProvisioningService;
+use App\Settings\InstanceSettings;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,10 @@ use Laravel\Socialite\Contracts\User as SocialiteUser;
 
 class SocialiteService
 {
-    public function __construct(private readonly WorkspaceProvisioningService $provisioning) {}
+    public function __construct(
+        private readonly WorkspaceProvisioningService $provisioning,
+        private readonly InstanceSettings $settings,
+    ) {}
 
     /**
      * Guest path: log in an existing identity, link-and-login an existing
@@ -63,6 +67,10 @@ class SocialiteService
             return new SocialiteResult($byEmail, wasRegistered: false);
         }
 
+        if (! $this->settings->registrationsAllowed($invitationToken)) {
+            throw SocialAuthException::registrationsDisabled();
+        }
+
         try {
             $user = DB::transaction(function () use ($provider, $oauthUser, $email, $invitationToken): User {
                 $user = User::create([
@@ -76,6 +84,7 @@ class SocialiteService
                 }
 
                 $this->linkAccount($user, $provider, $oauthUser);
+                $this->settings->claimOwnerIfMissing($user);
                 $this->provisioning->provisionForNewUser($user, $invitationToken);
 
                 return $user;

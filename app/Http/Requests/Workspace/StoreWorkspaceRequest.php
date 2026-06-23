@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Workspace;
 
+use App\Settings\InstanceSettings;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreWorkspaceRequest extends FormRequest
@@ -11,7 +12,7 @@ class StoreWorkspaceRequest extends FormRequest
     public function authorize(): bool
     {
         return (bool) config('kit.workspaces.enabled')
-            && (bool) config('kit.workspaces.can_create_workspaces');
+            && app(InstanceSettings::class)->workspaceCreationEnabled();
     }
 
     /**

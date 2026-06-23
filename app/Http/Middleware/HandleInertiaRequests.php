@@ -8,6 +8,7 @@ use App\Models\AccountSet;
 use App\Models\ConnectedAccount;
 use App\Models\User;
 use App\Models\WorkspaceMembership;
+use App\Settings\InstanceSettings;
 use App\Support\Notifications\NotificationPresenter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -65,6 +66,9 @@ class HandleInertiaRequests extends Middleware
             'notifications' => $this->notificationsData($request->user()),
             'features' => [
                 'analytics' => (bool) config('metrics.enabled'),
+            ],
+            'instance' => [
+                'isOwner' => $request->user()?->isInstanceOwner() ?? false,
             ],
         ];
     }
@@ -125,13 +129,14 @@ class HandleInertiaRequests extends Middleware
     private function workspacesData(?User $user): array
     {
         $enabled = (bool) config('kit.workspaces.enabled');
+        $canCreate = $enabled && app(InstanceSettings::class)->workspaceCreationEnabled();
 
         if (! $user) {
             return [
                 'enabled' => $enabled,
                 'all' => [],
                 'current' => null,
-                'canCreateWorkspaces' => (bool) config('kit.workspaces.can_create_workspaces'),
+                'canCreateWorkspaces' => $canCreate,
             ];
         }
 
@@ -164,7 +169,7 @@ class HandleInertiaRequests extends Middleware
             'enabled' => $enabled,
             'all' => $all,
             'current' => $current,
-            'canCreateWorkspaces' => (bool) config('kit.workspaces.can_create_workspaces'),
+            'canCreateWorkspaces' => $canCreate,
         ];
     }
 

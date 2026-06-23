@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\ConnectionsController;
+use App\Http\Controllers\Settings\InstanceSettingsController;
 use App\Http\Controllers\Settings\NotificationPreferencesController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
@@ -28,6 +29,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/notifications', [NotificationPreferencesController::class, 'edit'])->name('notifications.preferences');
     Route::put('settings/notifications', [NotificationPreferencesController::class, 'update'])->name('notifications.preferences.update');
+
+    Route::get('settings/instance', [InstanceSettingsController::class, 'edit'])->name('instance-settings.edit');
+    Route::put('settings/instance', [InstanceSettingsController::class, 'update'])->name('instance-settings.update');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

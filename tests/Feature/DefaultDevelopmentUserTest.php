@@ -14,6 +14,7 @@ it('seeds the default user with a current workspace in development', function ()
     $user = User::query()->where('email', 'test@example.com')->firstOrFail();
 
     expect($user->name)->toBe('Test User')
+        ->and($user->isInstanceOwner())->toBeTrue()
         ->and($user->current_workspace_id)->not->toBeNull()
         ->and(Workspace::query()->whereKey($user->current_workspace_id)->exists())->toBeTrue()
         ->and(WorkspaceMembership::query()

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\InstanceRole;
 use App\Enums\WorkspaceRole;
 use App\Models\User;
 use App\Models\Workspace;
@@ -21,8 +22,13 @@ class DefaultUserSeeder extends Seeder
                 'name' => 'Test User',
                 'password' => 'password',
                 'email_verified_at' => now(),
+                'instance_role' => InstanceRole::Owner,
             ],
         );
+
+        if (! $user->isInstanceOwner()) {
+            $user->forceFill(['instance_role' => InstanceRole::Owner])->save();
+        }
 
         $workspace = Workspace::query()->firstOrCreate(
             ['slug' => 'test-workspace'],

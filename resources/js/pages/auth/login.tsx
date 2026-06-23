@@ -19,6 +19,8 @@ import type { SocialProviderOption } from '@/types/auth';
 type Props = {
     status?: string;
     canResetPassword: boolean;
+    canRegister?: boolean;
+    registrationDisabledMessage?: string | null;
     providers?: SocialProviderOption[];
     invitation?: string;
     defaultLogin?: {
@@ -30,6 +32,8 @@ type Props = {
 export default function Login({
     status,
     canResetPassword,
+    canRegister = true,
+    registrationDisabledMessage,
     providers = [],
     invitation,
     defaultLogin,
@@ -124,12 +128,18 @@ export default function Login({
                             </Button>
                         </div>
 
-                        <div className="text-center text-sm text-muted-foreground">
-                            Don't have an account?{' '}
-                            <TextLink href={register()} tabIndex={5}>
-                                Sign up
-                            </TextLink>
-                        </div>
+                        {canRegister ? (
+                            <div className="text-center text-sm text-muted-foreground">
+                                Don't have an account?{' '}
+                                <TextLink href={register()} tabIndex={5}>
+                                    Sign up
+                                </TextLink>
+                            </div>
+                        ) : (
+                            <div className="text-center text-sm text-muted-foreground">
+                                {registrationDisabledMessage}
+                            </div>
+                        )}
                     </>
                 )}
             </Form>

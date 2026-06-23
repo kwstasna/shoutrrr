@@ -26,6 +26,7 @@ declare module '@inertiajs/core' {
             };
             notifications: NotificationsData;
             features?: { analytics: boolean };
+            instance: { isOwner: boolean };
             [key: string]: unknown;
         };
     }

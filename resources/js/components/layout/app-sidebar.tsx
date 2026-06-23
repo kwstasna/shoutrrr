@@ -7,11 +7,13 @@ import {
     Pencil,
     Settings,
     Share2,
+    Wrench,
     type LucideIcon,
 } from 'lucide-react';
 import { useEffect } from 'react';
 
 import PostingScheduleController from '@/actions/App/Http/Controllers/Posts/PostingScheduleController';
+import InstanceSettingsController from '@/actions/App/Http/Controllers/Settings/InstanceSettingsController';
 import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 import AppLogo from '@/components/layout/app-logo';
 import { NavUser } from '@/components/layout/nav-user';
@@ -48,6 +50,7 @@ type NavItem = {
 };
 
 export const workspaceSettingsLabel = 'Workspace settings';
+export const instanceSettingsLabel = 'Instance settings';
 
 const postsNavItems: NavItem[] = [
     { title: 'Posts', href: postsRoute(), icon: Inbox },
@@ -61,8 +64,8 @@ const postsNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { workspaces, features } = usePage().props;
-    const { isCurrentUrl } = useCurrentUrl();
+    const { workspaces, features, instance } = usePage().props;
+    const { isCurrentOrParentUrl, isCurrentUrl } = useCurrentUrl();
     const { state, setOpenMobile } = useSidebar();
     const collapsed = state === 'collapsed';
 
@@ -205,7 +208,7 @@ export function AppSidebar() {
                                     <SidebarMenuButton
                                         asChild
                                         tooltip={workspaceSettingsLabel}
-                                        isActive={isCurrentUrl(
+                                        isActive={isCurrentOrParentUrl(
                                             WorkspaceSettingsController.showOverview(),
                                         )}
                                     >
@@ -221,6 +224,28 @@ export function AppSidebar() {
                                         </Link>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
+                                {instance.isOwner && (
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton
+                                            asChild
+                                            tooltip={instanceSettingsLabel}
+                                            isActive={isCurrentUrl(
+                                                InstanceSettingsController.edit(),
+                                            )}
+                                        >
+                                            <Link
+                                                href={InstanceSettingsController.edit()}
+                                                prefetch={['mount', 'hover']}
+                                                cacheFor={['30s', '1m']}
+                                            >
+                                                <Wrench aria-hidden="true" />
+                                                <span>
+                                                    {instanceSettingsLabel}
+                                                </span>
+                                            </Link>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                )}
                             </SidebarMenu>
                         </SidebarGroupContent>
                     </SidebarGroup>

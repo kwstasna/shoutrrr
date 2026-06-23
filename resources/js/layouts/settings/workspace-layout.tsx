@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 
+import InstanceSettingsController from '@/actions/App/Http/Controllers/Settings/InstanceSettingsController';
 import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 import Heading from '@/components/common/heading';
 import { Button } from '@/components/ui/button';
@@ -9,24 +10,33 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
-    {
-        title: 'Overview',
-        href: WorkspaceSettingsController.showOverview(),
-        icon: null,
-    },
-    {
-        title: 'Members',
-        href: WorkspaceSettingsController.showMembers(),
-        icon: null,
-    },
-];
-
 export default function WorkspaceSettingsLayout({
     children,
 }: PropsWithChildren) {
-    const { isCurrentUrl } = useCurrentUrl();
-    const { workspaces } = usePage().props;
+    const { isCurrentOrParentUrl, isCurrentUrl } = useCurrentUrl();
+    const { instance, workspaces } = usePage().props;
+
+    const sidebarNavItems: NavItem[] = [
+        {
+            title: 'Overview',
+            href: WorkspaceSettingsController.showOverview(),
+            icon: null,
+        },
+        {
+            title: 'Members',
+            href: WorkspaceSettingsController.showMembers(),
+            icon: null,
+        },
+        ...(instance.isOwner
+            ? [
+                  {
+                      title: 'Instance',
+                      href: InstanceSettingsController.edit(),
+                      icon: null,
+                  },
+              ]
+            : []),
+    ];
 
     return (
         <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6">
@@ -52,7 +62,10 @@ export default function WorkspaceSettingsLayout({
                                 variant="ghost"
                                 asChild
                                 className={cn('w-full justify-start', {
-                                    'bg-muted': isCurrentUrl(item.href),
+                                    'bg-muted':
+                                        item.title === 'Overview'
+                                            ? isCurrentUrl(item.href)
+                                            : isCurrentOrParentUrl(item.href),
                                 })}
                             >
                                 <Link href={item.href}>

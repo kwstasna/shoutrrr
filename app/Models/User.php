@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\NotificationPreferencesCast;
+use App\Enums\InstanceRole;
 use App\Enums\SocialProvider;
 use App\Support\Notifications\NotificationPreferences;
 use Database\Factories\UserFactory;
@@ -33,11 +34,12 @@ use Override;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
+ * @property InstanceRole|null $instance_role
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property NotificationPreferences|null $notification_preferences
  */
-#[Fillable(['name', 'email', 'password', 'current_workspace_id', 'notification_preferences'])]
+#[Fillable(['name', 'email', 'password', 'current_workspace_id', 'notification_preferences', 'instance_role'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail, OAuthenticatable, PasskeyUser
 {
@@ -57,6 +59,7 @@ class User extends Authenticatable implements MustVerifyEmail, OAuthenticatable,
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'notification_preferences' => NotificationPreferencesCast::class,
+            'instance_role' => InstanceRole::class,
         ];
     }
 
@@ -137,6 +140,11 @@ class User extends Authenticatable implements MustVerifyEmail, OAuthenticatable,
     public function isOwnerOfWorkspace(?string $workspaceId): bool
     {
         return $this->getMembershipForWorkspace($workspaceId)?->isOwner() ?? false;
+    }
+
+    public function isInstanceOwner(): bool
+    {
+        return $this->instance_role === InstanceRole::Owner;
     }
 
     /**

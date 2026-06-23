@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Enums\SocialProvider;
+use App\Settings\InstanceSettings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -51,13 +52,20 @@ class FortifyServiceProvider extends ServiceProvider
      */
     private function configureViews(): void
     {
-        Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
-            'canResetPassword' => Features::enabled(Features::resetPasswords()),
-            'status' => $request->session()->get('status'),
-            'providers' => SocialProvider::enabledProvidersWithLabels(),
-            'invitation' => $request->query('invitation'),
-            ...$this->defaultLoginCredentials(),
-        ]));
+        Fortify::loginView(function (Request $request) {
+            $settings = app(InstanceSettings::class);
+            $canRegister = $settings->registrationsAllowed($request->query('invitation'));
+
+            return Inertia::render('auth/login', [
+                'canResetPassword' => Features::enabled(Features::resetPasswords()),
+                'canRegister' => $canRegister,
+                'registrationDisabledMessage' => $canRegister ? null : 'Registration is disabled for this instance.',
+                'status' => $request->session()->get('status'),
+                'providers' => SocialProvider::enabledProvidersWithLabels(),
+                'invitation' => $request->query('invitation'),
+                ...$this->defaultLoginCredentials(),
+            ]);
+        });
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [
             'email' => $request->email,
@@ -73,11 +81,17 @@ class FortifyServiceProvider extends ServiceProvider
             'status' => $request->session()->get('status'),
         ]));
 
-        Fortify::registerView(fn (Request $request) => Inertia::render('auth/register', [
-            'passwordRules' => Password::defaults()->toPasswordRulesString(),
-            'providers' => SocialProvider::enabledProvidersWithLabels(),
-            'invitation' => $request->query('invitation'),
-        ]));
+        Fortify::registerView(function (Request $request) {
+            if (! app(InstanceSettings::class)->registrationsAllowed($request->query('invitation'))) {
+                return redirect()->route('login');
+            }
+
+            return Inertia::render('auth/register', [
+                'passwordRules' => Password::defaults()->toPasswordRulesString(),
+                'providers' => SocialProvider::enabledProvidersWithLabels(),
+                'invitation' => $request->query('invitation'),
+            ]);
+        });
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
 

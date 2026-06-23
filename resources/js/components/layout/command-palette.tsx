@@ -10,10 +10,12 @@ import {
     Plug,
     Settings,
     Share2,
+    Wrench,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import PostingScheduleController from '@/actions/App/Http/Controllers/Posts/PostingScheduleController';
+import InstanceSettingsController from '@/actions/App/Http/Controllers/Settings/InstanceSettingsController';
 import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 import {
     Command,
@@ -59,7 +61,7 @@ export function openCommandPalette() {
 }
 
 export function CommandPalette() {
-    const { workspaces, shell } = usePage().props;
+    const { instance, workspaces, shell } = usePage().props;
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [recents, setRecents] = useState<RecentItem[]>([]);
@@ -302,6 +304,23 @@ export function CommandPalette() {
                                             aria-hidden
                                         />
                                         Workspace settings
+                                    </CommandItem>
+                                )}
+                                {showSettings && instance.isOwner && (
+                                    <CommandItem
+                                        value="instance settings"
+                                        onSelect={run(() =>
+                                            router.visit(
+                                                InstanceSettingsController.edit()
+                                                    .url,
+                                            ),
+                                        )}
+                                    >
+                                        <Wrench
+                                            className="size-4"
+                                            aria-hidden
+                                        />
+                                        Instance settings
                                     </CommandItem>
                                 )}
                             </CommandGroup>
