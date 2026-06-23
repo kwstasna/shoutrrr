@@ -1,4 +1,5 @@
 import { Form, Head, router } from '@inertiajs/react';
+import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -8,15 +9,21 @@ import { useConfirm } from '@/components/common/confirm-dialog';
 import Heading from '@/components/common/heading';
 import InputError from '@/components/common/input-error';
 import { Button } from '@/components/ui/button';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 
 type Props = {
     workspace: {
@@ -217,6 +224,7 @@ function TimezoneSection({
     canManage: boolean;
 }) {
     const [value, setValue] = useState(timezone);
+    const [open, setOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const dirty = value !== timezone;
 
@@ -244,22 +252,47 @@ function TimezoneSection({
             />
             <div className="grid max-w-xs gap-2">
                 <Label htmlFor="posting-timezone">Timezone</Label>
-                <Select
-                    value={value}
-                    onValueChange={setValue}
-                    disabled={!canManage}
-                >
-                    <SelectTrigger id="posting-timezone">
-                        <SelectValue placeholder="Select a timezone" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                        {timezones.map((tz) => (
-                            <SelectItem key={tz} value={tz}>
-                                {tz}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        <Button
+                            id="posting-timezone"
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={open}
+                            disabled={!canManage}
+                            className="justify-between font-normal"
+                        >
+                            <span className="truncate">
+                                {value || 'Select a timezone'}
+                            </span>
+                            <ChevronsUpDown className="opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+                        <Command>
+                            <CommandInput placeholder="Search timezones..." />
+                            <CommandList>
+                                <CommandEmpty>No timezone found.</CommandEmpty>
+                                <CommandGroup>
+                                    {timezones.map((tz) => (
+                                        <CommandItem
+                                            key={tz}
+                                            value={tz}
+                                            data-checked={value === tz}
+                                            onSelect={() => {
+                                                setValue(tz);
+                                                setOpen(false);
+                                            }}
+                                        >
+                                            {tz}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+                    </PopoverContent>
+                </Popover>
             </div>
             {canManage && (
                 <Button
