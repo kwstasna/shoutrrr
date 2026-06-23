@@ -33,6 +33,10 @@ import {
     type RecentItem,
 } from '@/lib/command/recents';
 import { usePostSearch } from '@/lib/command/use-post-search';
+import {
+    commandShortcutListenerOptions,
+    isComposeShortcut,
+} from '@/lib/navigation/compose-nav';
 import { switchWorkspace } from '@/lib/workspaces/switch-workspace';
 import { dashboard, logout } from '@/routes';
 import { index as accountsRoute } from '@/routes/accounts';
@@ -84,7 +88,7 @@ export function CommandPalette() {
             if (key === 'k') {
                 e.preventDefault();
                 setOpen((v) => !v);
-            } else if (key === 'n') {
+            } else if (isComposeShortcut(e)) {
                 e.preventDefault();
                 router.visit(composeUrl);
             }
@@ -92,11 +96,19 @@ export function CommandPalette() {
         function onOpen() {
             setOpen(true);
         }
-        window.addEventListener('keydown', onKey);
+        window.addEventListener(
+            'keydown',
+            onKey,
+            commandShortcutListenerOptions,
+        );
         window.addEventListener(OPEN_COMMAND_EVENT, onOpen);
 
         return () => {
-            window.removeEventListener('keydown', onKey);
+            window.removeEventListener(
+                'keydown',
+                onKey,
+                commandShortcutListenerOptions,
+            );
             window.removeEventListener(OPEN_COMMAND_EVENT, onOpen);
         };
     }, [composeUrl]);

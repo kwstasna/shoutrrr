@@ -24,6 +24,8 @@ type EditorBodyProps = {
     activePlatformLabel?: string | null;
     /** Reset-to-base handler for the override banner. */
     onResetOverride?: () => void;
+    /** Focus the editor when it mounts. */
+    autoFocus?: boolean;
     /**
      * Active platform + splitting config pushed into the section-markers plugin
      * whenever the active tab changes. Omit to leave markers at their defaults.
@@ -36,11 +38,19 @@ type EditorBodyProps = {
     };
 };
 
+export function shouldFocusEditorOnMount(
+    autoFocus: boolean,
+    editable: boolean,
+): boolean {
+    return autoFocus && editable;
+}
+
 export default function EditorBody({
     value,
     onChange,
     onBlur,
     placeholder,
+    autoFocus = false,
     overrideBanner = false,
     activePlatformLabel,
     onResetOverride,
@@ -55,6 +65,18 @@ export default function EditorBody({
             onChange(docToBaseText(editor.getJSON() as DocNode)),
         onBlur,
     });
+
+    useEffect(() => {
+        if (!editor || !shouldFocusEditorOnMount(autoFocus, editable)) {
+            return;
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            editor.commands.focus('end');
+        });
+
+        return () => window.cancelAnimationFrame(frame);
+    }, [editor, autoFocus, editable]);
 
     // Reflect editability changes (tiptap caches it from the initial options).
     useEffect(() => {

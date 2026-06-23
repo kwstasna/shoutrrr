@@ -45,6 +45,8 @@ type ComposerProps = {
     initialScheduleAt?: string | null;
     /** Seed the destination for a brand-new post (e.g. compose-for-channel). */
     initialDestination?: Destination | null;
+    /** Focus the editor as soon as it mounts. */
+    autoFocusEditor?: boolean;
 };
 
 function accountIdsFor(
@@ -77,6 +79,7 @@ export default function Composer({
     limits,
     initialScheduleAt = null,
     initialDestination = null,
+    autoFocusEditor = false,
 }: ComposerProps) {
     const schedulingTz = useSchedulingTimezone();
     // True while any attachment is still uploading — blocks publish/schedule.
@@ -266,6 +269,7 @@ export default function Composer({
                 onChange={handleText}
                 onBlur={flush}
                 editable={!readOnly}
+                autoFocus={autoFocusEditor}
                 overrideBanner={overrideActive}
                 activePlatformLabel={activeAccount?.platform ?? null}
                 onResetOverride={() =>

@@ -83,6 +83,7 @@ export default function Dashboard({ onboarding }: Props) {
                         limits={shell.limits}
                         initialScheduleAt={initialScheduleAt}
                         initialDestination={initialDestination}
+                        autoFocusEditor
                     />
                 )}
             </div>

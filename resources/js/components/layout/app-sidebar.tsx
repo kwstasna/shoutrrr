@@ -31,7 +31,10 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceSelector } from '@/components/workspace/workspace-selector';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { cn } from '@/lib/utils';
+import {
+    composeButtonClassName,
+    composeIconClassName,
+} from '@/lib/navigation/compose-nav';
 import { dashboard } from '@/routes';
 import { index as accountsRoute } from '@/routes/accounts';
 import { index as analyticsRoute } from '@/routes/analytics';
@@ -109,10 +112,8 @@ export function AppSidebar() {
                                     asChild
                                     tooltip="Compose new post"
                                     isActive={isCurrentUrl(composeHref)}
-                                    className={cn(
-                                        'h-9 justify-between gap-2 bg-primary font-medium text-primary-foreground shadow-sm ring-1 ring-primary/20 transition-all',
-                                        'hover:bg-primary/90 hover:text-primary-foreground hover:shadow active:scale-[0.98]',
-                                        'data-[active=true]:bg-primary data-[active=true]:text-primary-foreground',
+                                    className={composeButtonClassName(
+                                        collapsed,
                                     )}
                                 >
                                     <Link
@@ -120,8 +121,10 @@ export function AppSidebar() {
                                         prefetch={['mount', 'hover']}
                                         cacheFor={['30s', '1m']}
                                     >
-                                        <span className="flex items-center gap-2">
-                                            <span className="flex size-5 items-center justify-center rounded-md bg-primary-foreground/15 [&>svg]:size-3.5">
+                                        <span className="pointer-events-none flex items-center gap-2">
+                                            <span
+                                                className={composeIconClassName()}
+                                            >
                                                 <Pencil aria-hidden="true" />
                                             </span>
                                             {!collapsed && (
@@ -130,7 +133,7 @@ export function AppSidebar() {
                                         </span>
                                         {!collapsed && (
                                             <Kbd className="bg-primary-foreground/15 text-primary-foreground">
-                                                ⌘N
+                                                ⌘.
                                             </Kbd>
                                         )}
                                     </Link>
