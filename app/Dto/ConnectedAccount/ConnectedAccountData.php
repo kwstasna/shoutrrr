@@ -13,6 +13,7 @@ final readonly class ConnectedAccountData
 {
     /**
      * @param  array<string, mixed>|null  $session
+     * @param  array<string, mixed>|null  $capabilities
      */
     public function __construct(
         public Platform $platform,
@@ -25,6 +26,7 @@ final readonly class ConnectedAccountData
         public ?string $refreshToken = null,
         public ?string $appPassword = null,
         public ?array $session = null,
+        public ?array $capabilities = null,
         public ?CarbonImmutable $tokenExpiresAt = null,
     ) {}
 
@@ -43,6 +45,27 @@ final readonly class ConnectedAccountData
             accessToken: $attributes['token'] ?? null,
             refreshToken: $attributes['refreshToken'] ?? null,
             tokenExpiresAt: $expiresIn ? Date::now()->addSeconds((int) $expiresIn)->toImmutable() : null,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $capabilities
+     */
+    public function withCapabilities(?array $capabilities): self
+    {
+        return new self(
+            platform: $this->platform,
+            remoteAccountId: $this->remoteAccountId,
+            handle: $this->handle,
+            displayName: $this->displayName,
+            avatarUrl: $this->avatarUrl,
+            authMethod: $this->authMethod,
+            accessToken: $this->accessToken,
+            refreshToken: $this->refreshToken,
+            appPassword: $this->appPassword,
+            session: $this->session,
+            capabilities: $capabilities,
+            tokenExpiresAt: $this->tokenExpiresAt,
         );
     }
 

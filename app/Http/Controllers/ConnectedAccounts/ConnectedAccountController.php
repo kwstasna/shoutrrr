@@ -25,11 +25,13 @@ class ConnectedAccountController extends Controller
     public function index(Request $request): Response
     {
         $request->user()->can('viewAny', ConnectedAccount::class) ?: abort(403);
+        $defaultAccountId = $request->user()->currentWorkspace()->value('default_connected_account_id');
 
         $accounts = ConnectedAccount::query()
             ->with('connectedBy:id,name')
             ->latest()
             ->get()
+            ->sortByDesc(fn (ConnectedAccount $account): bool => $account->id === $defaultAccountId)
             ->map(fn (ConnectedAccount $account): array => [
                 'id' => $account->id,
                 'platform' => $account->platform->value,
@@ -42,7 +44,11 @@ class ConnectedAccountController extends Controller
                 'auth_method' => $account->auth_method,
                 'connected_by' => $account->connectedBy?->name,
                 'token_expires_at' => $account->token_expires_at?->toIso8601String(),
+                'max_text_length' => $account->maxTextLength(),
+                'x_premium' => $account->hasXPremium(),
+                'is_default' => $account->id === $defaultAccountId,
             ])
+            ->values()
             ->all();
 
         return Inertia::render('accounts/index', [
@@ -95,9 +101,27 @@ class ConnectedAccountController extends Controller
         return redirect()->route('accounts.index')->with('success', 'Account reconnected.');
     }
 
+    public function makeDefault(Request $request, ConnectedAccount $account): RedirectResponse
+    {
+        $request->user()->can('update', $account) ?: abort(403);
+
+        $workspace = $request->user()->currentWorkspace()->firstOrFail();
+
+        $workspace->forceFill([
+            'default_connected_account_id' => $account->id,
+        ])->save();
+
+        return redirect()->route('accounts.index')->with('success', "{$account->handle} is now the default account.");
+    }
+
     public function destroy(Request $request, ConnectedAccount $account): RedirectResponse
     {
         $request->user()->can('delete', $account) ?: abort(403);
+
+        $workspace = $request->user()->currentWorkspace()->first();
+        if ($workspace?->default_connected_account_id === $account->id) {
+            $workspace->forceFill(['default_connected_account_id' => null])->save();
+        }
 
         $account->secret()->delete();
         $account->delete();

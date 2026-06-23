@@ -16,14 +16,14 @@ class PostSplitter
     /**
      * Split text into platform sections and collect advisory validation issues.
      */
-    public function split(string $text, Platform $platform, bool $autoSplit): SplitResult
+    public function split(string $text, Platform $platform, bool $autoSplit, ?int $maxLength = null): SplitResult
     {
         $segments = $this->manualSegments($text);
 
         $sections = [];
         foreach ($segments as $segment) {
             if ($autoSplit) {
-                foreach ($this->chunk($segment, $platform) as $chunk) {
+                foreach ($this->chunk($segment, $platform, $maxLength) as $chunk) {
                     $sections[] = $chunk;
                 }
             } else {
@@ -35,7 +35,7 @@ class PostSplitter
             $sections = [''];
         }
 
-        return new SplitResult($sections, $this->validateSections($sections, $platform, 0));
+        return new SplitResult($sections, $this->validateSections($sections, $platform, 0, $maxLength));
     }
 
     /**
@@ -44,12 +44,13 @@ class PostSplitter
      * @param  list<string>  $sections
      * @return list<string>
      */
-    public function validateSections(array $sections, Platform $platform, int $mediaCount): array
+    public function validateSections(array $sections, Platform $platform, int $mediaCount, ?int $maxLength = null): array
     {
         $issues = [];
+        $limit = $maxLength ?? $platform->maxLength();
 
         foreach ($sections as $section) {
-            if ($platform->measure($section) > $platform->maxLength()) {
+            if ($platform->measure($section) > $limit) {
                 $issues[] = 'section_too_long';
                 break;
             }
@@ -104,13 +105,13 @@ class PostSplitter
      *
      * @return list<string>
      */
-    private function chunk(string $segment, Platform $platform): array
+    private function chunk(string $segment, Platform $platform, ?int $maxLength): array
     {
-        if ($platform->measure($segment) <= $platform->maxLength()) {
+        $limit = $maxLength ?? $platform->maxLength();
+
+        if ($platform->measure($segment) <= $limit) {
             return [$segment];
         }
-
-        $limit = $platform->maxLength();
 
         $sections = [];
         $current = '';
@@ -126,7 +127,7 @@ class PostSplitter
                     $hasCurrent = false;
                 }
 
-                foreach ($this->splitParagraph($paragraph, $platform) as $piece) {
+                foreach ($this->splitParagraph($paragraph, $platform, $limit) as $piece) {
                     $sections[] = $piece;
                 }
 
@@ -162,9 +163,8 @@ class PostSplitter
      *
      * @return list<string>
      */
-    private function splitParagraph(string $paragraph, Platform $platform): array
+    private function splitParagraph(string $paragraph, Platform $platform, int $limit): array
     {
-        $limit = $platform->maxLength();
         $words = preg_split('/\s+/', trim($paragraph)) ?: [$paragraph];
 
         $chunks = [];
@@ -186,7 +186,7 @@ class PostSplitter
 
             // A single word longer than the limit is hard-split by characters.
             if ($platform->measure($word) > $limit) {
-                foreach ($this->hardSplit($word, $platform) as $piece) {
+                foreach ($this->hardSplit($word, $platform, $limit) as $piece) {
                     $chunks[] = $piece;
                 }
             } else {
@@ -204,9 +204,8 @@ class PostSplitter
     /**
      * @return list<string>
      */
-    private function hardSplit(string $word, Platform $platform): array
+    private function hardSplit(string $word, Platform $platform, int $limit): array
     {
-        $limit = $platform->maxLength();
         $pieces = [];
         $buffer = '';
 

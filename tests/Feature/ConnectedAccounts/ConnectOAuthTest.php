@@ -7,6 +7,7 @@ use App\Models\ConnectedAccount;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
+use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\AbstractProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -94,6 +95,11 @@ test('callback persists an active X account with an encrypted token', function (
         'refreshToken' => 'refresh',
         'expiresIn' => 7200,
     ]);
+    Http::fake([
+        'https://api.twitter.com/2/users/me*' => Http::response([
+            'data' => ['id' => 'x-99', 'verified_type' => 'none'],
+        ]),
+    ]);
 
     test()->get('/accounts/callback/x')->assertRedirect(route('accounts.index'));
 
@@ -103,7 +109,35 @@ test('callback persists an active X account with an encrypted token', function (
         ->and($account->status)->toBe(ConnectedAccountStatus::Active)
         ->and($account->handle)->toBe('@ada')
         ->and($account->workspace_id)->toBe($workspace->id)
-        ->and($account->secret->access_token)->toBe('access');
+        ->and($account->secret->access_token)->toBe('access')
+        ->and($account->capabilities)->toBe([
+            'x_premium' => false,
+            'max_text_length' => 280,
+            'verified_type' => 'none',
+        ]);
+});
+
+test('callback detects X premium accounts for long tweets', function () {
+    config()->set('services.x.client_id', 'cid');
+    config()->set('services.x.client_secret', 'secret');
+    config()->set('services.x.redirect', 'https://app.test/accounts/callback/x');
+    ownerActingIn();
+    fakeOAuthUser('x', [
+        'id' => 'x-premium',
+        'nickname' => 'premium',
+        'token' => 'access',
+    ]);
+    Http::fake([
+        'https://api.twitter.com/2/users/me*' => Http::response([
+            'data' => ['id' => 'x-premium', 'verified_type' => 'blue'],
+        ]),
+    ]);
+
+    test()->get('/accounts/callback/x')->assertRedirect(route('accounts.index'));
+
+    $account = ConnectedAccount::withoutGlobalScopes()->firstWhere('remote_account_id', 'x-premium');
+    expect($account->hasXPremium())->toBeTrue()
+        ->and($account->maxTextLength())->toBe(25_000);
 });
 
 test('callback maps a linkedin-openid user', function () {

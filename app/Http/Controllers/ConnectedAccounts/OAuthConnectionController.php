@@ -9,6 +9,7 @@ use App\Enums\Platform;
 use App\Http\Controllers\Controller;
 use App\Models\ConnectedAccount;
 use App\Services\ConnectedAccounts\AccountConnectionService;
+use App\Services\ConnectedAccounts\XAccountCapabilities;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -20,7 +21,10 @@ use Throwable;
 
 class OAuthConnectionController extends Controller
 {
-    public function __construct(private readonly AccountConnectionService $connections) {}
+    public function __construct(
+        private readonly AccountConnectionService $connections,
+        private readonly XAccountCapabilities $xCapabilities,
+    ) {}
 
     public function redirect(Request $request, string $platform): Response
     {
@@ -65,10 +69,13 @@ class OAuthConnectionController extends Controller
             return $this->failed("We couldn't read your {$resolved->label()} profile. Please try again.");
         }
 
-        $this->connections->store(
-            ConnectedAccountData::fromSocialite($resolved, $oauthUser),
-            $request->user(),
-        );
+        $data = ConnectedAccountData::fromSocialite($resolved, $oauthUser);
+
+        if ($resolved === Platform::X) {
+            $data = $data->withCapabilities($this->xCapabilities->forAccessToken($data->accessToken));
+        }
+
+        $this->connections->store($data, $request->user());
 
         return redirect()->route('accounts.index')
             ->with('success', "{$resolved->label()} account connected.");

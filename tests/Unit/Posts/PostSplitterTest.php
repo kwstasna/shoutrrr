@@ -72,6 +72,14 @@ test('without auto split an over-limit segment stays whole and is flagged', func
         ->and($result->issues)->toContain('section_too_long');
 });
 
+test('x can use a premium account length budget', function () {
+    $text = str_repeat('a', 400);
+    $result = splitter()->split($text, Platform::X, true, maxLength: 25_000);
+
+    expect($result->sections)->toBe([$text])
+        ->and($result->issues)->toBe([]);
+});
+
 test('linkedin thread max flags multi-section drafts', function () {
     $result = splitter()->split("one\n---\ntwo", Platform::LinkedIn, true);
 

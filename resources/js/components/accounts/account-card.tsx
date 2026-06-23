@@ -6,6 +6,7 @@ import ConnectedAccountController from '@/actions/App/Http/Controllers/Connected
 import InputError from '@/components/common/input-error';
 import { PlatformGlyph } from '@/components/common/platform-glyph';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -185,6 +186,28 @@ export function AccountCard({
 
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-muted-foreground">
                 <span>{account.platform_label}</span>
+                {account.is_default && (
+                    <>
+                        <span aria-hidden>·</span>
+                        <Badge
+                            variant="success"
+                            className="h-4 rounded-full px-1.5 text-[10.5px]"
+                        >
+                            Default
+                        </Badge>
+                    </>
+                )}
+                {account.x_premium && (
+                    <>
+                        <span aria-hidden>·</span>
+                        <Badge
+                            variant="info"
+                            className="h-4 rounded-full px-1.5 text-[10.5px]"
+                        >
+                            Premium
+                        </Badge>
+                    </>
+                )}
                 {account.connected_by && (
                     <>
                         <span aria-hidden>·</span>
@@ -209,6 +232,26 @@ export function AccountCard({
                             <RefreshCw className="size-4" />
                             Reconnect
                         </Button>
+                    )}
+                    {!account.is_default && (
+                        <Form
+                            {...ConnectedAccountController.makeDefault.form(
+                                account.id,
+                            )}
+                            options={{ preserveScroll: true }}
+                        >
+                            {({ processing }) => (
+                                <Button
+                                    type="submit"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 text-muted-foreground"
+                                    disabled={processing}
+                                >
+                                    Make default
+                                </Button>
+                            )}
+                        </Form>
                     )}
                     <Button
                         variant="ghost"

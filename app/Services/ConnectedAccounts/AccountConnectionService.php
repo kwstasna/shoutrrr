@@ -39,6 +39,7 @@ class AccountConnectionService
                     'auth_method' => $data->authMethod,
                     'connected_by_user_id' => $connectedBy->id,
                     'status' => ConnectedAccountStatus::Active->value,
+                    'capabilities' => $data->capabilities,
                     'token_expires_at' => $data->tokenExpiresAt,
                     'last_refreshed_at' => Date::now(),
                 ],

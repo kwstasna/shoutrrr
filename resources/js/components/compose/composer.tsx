@@ -165,8 +165,12 @@ export default function Composer({
             ? (state.overrideByAccount[activeAccount.id] as string)
             : state.baseText;
 
-    function limitFor(platform: PlatformName): number {
+    function limitForPlatform(platform: PlatformName): number {
         return limits.find((l) => l.platform === platform)?.maxLength ?? 0;
+    }
+
+    function limitForAccount(account: Account): number {
+        return account.max_text_length || limitForPlatform(account.platform);
     }
 
     function severityFor(accountId: string): 'ok' | 'warn' | 'over' {
@@ -178,7 +182,7 @@ export default function Composer({
             state.overrideByAccount[accountId] !== undefined
                 ? (state.overrideByAccount[accountId] as string)
                 : state.baseText;
-        const limit = limitFor(account.platform);
+        const limit = limitForAccount(account);
         const count = measure(text, account.platform);
         if (limit > 0 && count > limit) {
             return 'over';
@@ -195,10 +199,6 @@ export default function Composer({
         const target = post?.targets.find(
             (t) => t.connected_account_id === accountId,
         );
-        if (account.platform === 'linkedin') {
-            return (target?.issues.length ?? 0) === 0 ? '✓' : '!';
-        }
-
         return String(target?.sections.length ?? 1);
     }
 
@@ -286,7 +286,7 @@ export default function Composer({
                               autoSplit:
                                   state.autoSplitByAccount[activeAccount.id] ??
                                   true,
-                              limit: limitFor(activeAccount.platform),
+                              limit: limitForAccount(activeAccount),
                               threadMax:
                                   limits.find(
                                       (l) =>
@@ -301,7 +301,7 @@ export default function Composer({
             {activeAccount ? (
                 <CharCounter
                     count={measure(activeText, activeAccount.platform)}
-                    limit={limitFor(activeAccount.platform)}
+                    limit={limitForAccount(activeAccount)}
                     sectionTotal={activeSectionTotal}
                     state={severityFor(activeAccount.id)}
                 />

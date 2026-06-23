@@ -30,6 +30,7 @@ use Override;
  * @property string $auth_method
  * @property string|null $connected_by_user_id
  * @property ConnectedAccountStatus $status
+ * @property array<string, mixed>|null $capabilities
  * @property CarbonImmutable|null $token_expires_at
  * @property CarbonImmutable|null $last_refreshed_at
  * @property CarbonImmutable|null $metrics_captured_at
@@ -45,6 +46,7 @@ use Override;
     'auth_method',
     'connected_by_user_id',
     'status',
+    'capabilities',
     'token_expires_at',
     'last_refreshed_at',
     'metrics_captured_at',
@@ -64,11 +66,23 @@ class ConnectedAccount extends Model
         return [
             'platform' => Platform::class,
             'status' => ConnectedAccountStatus::class,
+            'capabilities' => 'array',
             'token_expires_at' => 'immutable_datetime',
             'last_refreshed_at' => 'immutable_datetime',
             'metrics_captured_at' => 'immutable_datetime',
             'metrics_status' => MetricsStatus::class,
         ];
+    }
+
+    public function maxTextLength(): int
+    {
+        return (int) ($this->capabilities['max_text_length'] ?? $this->platform->maxLength());
+    }
+
+    public function hasXPremium(): bool
+    {
+        return $this->platform === Platform::X
+            && (bool) ($this->capabilities['x_premium'] ?? false);
     }
 
     /**

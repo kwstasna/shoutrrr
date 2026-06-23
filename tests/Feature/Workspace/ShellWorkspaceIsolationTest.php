@@ -55,3 +55,25 @@ test('shell only exposes account sets from the current workspace', function () {
             ->where('shell.sets.0.id', $mine->id)
         );
 });
+
+test('shell lists the workspace default connected account first', function () {
+    $workspace = Workspace::factory()->create();
+    $user = User::factory()->create([
+        'current_workspace_id' => $workspace->id,
+        'email_verified_at' => now(),
+    ]);
+    WorkspaceMembership::factory()->owner()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $user->id,
+    ]);
+
+    ConnectedAccount::factory()->create(['workspace_id' => $workspace->id]);
+    $default = ConnectedAccount::factory()->create(['workspace_id' => $workspace->id]);
+    $workspace->forceFill(['default_connected_account_id' => $default->id])->save();
+
+    $this->actingAs($user)->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('shell.accounts.0.id', $default->id)
+        );
+});

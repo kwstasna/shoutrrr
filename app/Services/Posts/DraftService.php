@@ -12,6 +12,7 @@ use App\Models\Post;
 use App\Models\PostMedia;
 use App\Models\PostTarget;
 use App\Models\User;
+use App\Models\Workspace;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
@@ -68,7 +69,29 @@ class DraftService
                 ->pluck('id'),
         };
 
-        return array_values($ids->map(static fn (mixed $id): string => (string) $id)->all());
+        return $this->defaultFirst($workspaceId, $ids->map(static fn (mixed $id): string => (string) $id)->all());
+    }
+
+    /**
+     * @param  array<int, string>  $accountIds
+     * @return list<string>
+     */
+    private function defaultFirst(string $workspaceId, array $accountIds): array
+    {
+        $defaultAccountId = (string) (DB::table((new Workspace)->getTable())
+            ->where('id', $workspaceId)
+            ->value('default_connected_account_id') ?? '');
+
+        if ($defaultAccountId === '') {
+            return array_values($accountIds);
+        }
+
+        usort(
+            $accountIds,
+            static fn (string $left, string $right): int => (int) ($right === $defaultAccountId) <=> (int) ($left === $defaultAccountId),
+        );
+
+        return $accountIds;
     }
 
     /**
@@ -110,7 +133,12 @@ class DraftService
                 : $currentOverride;
 
             $effectiveText = $override['text'] ?? $baseText;
-            $sections = $this->splitter->split($effectiveText, $account->platform, $autoSplit)->sections;
+            $sections = $this->splitter->split(
+                $effectiveText,
+                $account->platform,
+                $autoSplit,
+                $account->maxTextLength(),
+            )->sections;
 
             PostTarget::updateOrCreate(
                 ['post_id' => $post->id, 'connected_account_id' => $accountId],

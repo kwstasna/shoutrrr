@@ -18,6 +18,7 @@ final class PostView
     {
         $splitter = app(PostSplitter::class);
         $mediaCount = $post->media->count();
+        $defaultAccountId = $post->workspace()->value('default_connected_account_id');
 
         return [
             'id' => $post->id,
@@ -27,22 +28,29 @@ final class PostView
             'published_at' => $post->published_at?->toIso8601String(),
             'updated_at' => $post->updated_at->toIso8601String(),
             'destination' => self::destination($post),
-            'targets' => $post->targets->map(fn (PostTarget $target): array => [
-                'id' => $target->id,
-                'connected_account_id' => $target->connected_account_id,
-                'platform' => $target->platform->value,
-                'handle' => $target->account?->handle,
-                'display_name' => $target->account?->display_name,
-                'avatar_url' => $target->account?->avatar_url,
-                'sections' => $target->sections,
-                'content_override' => $target->content_override,
-                'auto_split' => $target->auto_split,
-                'status' => $target->status->value,
-                'error_kind' => $target->error_kind?->value,
-                'error_message' => $target->error_message,
-                'remote_id' => $target->remote_id,
-                'issues' => $splitter->validateSections($target->sections, $target->platform, $mediaCount),
-            ])->all(),
+            'targets' => $post->targets
+                ->sortByDesc(fn (PostTarget $target): bool => $target->connected_account_id === $defaultAccountId)
+                ->map(fn (PostTarget $target): array => [
+                    'id' => $target->id,
+                    'connected_account_id' => $target->connected_account_id,
+                    'platform' => $target->platform->value,
+                    'handle' => $target->account?->handle,
+                    'display_name' => $target->account?->display_name,
+                    'avatar_url' => $target->account?->avatar_url,
+                    'sections' => $target->sections,
+                    'content_override' => $target->content_override,
+                    'auto_split' => $target->auto_split,
+                    'status' => $target->status->value,
+                    'error_kind' => $target->error_kind?->value,
+                    'error_message' => $target->error_message,
+                    'remote_id' => $target->remote_id,
+                    'issues' => $splitter->validateSections(
+                        $target->sections,
+                        $target->platform,
+                        $mediaCount,
+                        $target->account?->maxTextLength(),
+                    ),
+                ])->values()->all(),
             'media' => $post->media->map(fn (PostMedia $media): array => [
                 'id' => $media->id,
                 'url' => $media->url(),

@@ -13,6 +13,8 @@ export type Account = {
     handle: string;
     display_name: string | null;
     avatar_url: string | null;
+    max_text_length: number;
+    x_premium: boolean;
 };
 
 export type AccountSet = {

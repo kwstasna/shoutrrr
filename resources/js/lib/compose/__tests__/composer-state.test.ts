@@ -20,6 +20,8 @@ function account(id: string): Account {
         handle: `@${id}`,
         display_name: null,
         avatar_url: null,
+        max_text_length: 280,
+        x_premium: false,
     };
 }
 

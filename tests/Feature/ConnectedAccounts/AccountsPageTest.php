@@ -20,6 +20,11 @@ function viewerInWorkspace(WorkspaceRole $role): User
     ConnectedAccount::factory()->create([
         'workspace_id' => $workspace->id,
         'handle' => '@listed',
+        'capabilities' => [
+            'x_premium' => true,
+            'max_text_length' => 25_000,
+            'verified_type' => 'blue',
+        ],
     ]);
 
     return $user;
@@ -35,8 +40,83 @@ test('the accounts page lists accounts and exposes capabilities and canManage to
             ->has('capabilities', 3)
             ->has('accounts', 1)
             ->where('accounts.0.handle', '@listed')
+            ->where('accounts.0.x_premium', true)
+            ->where('accounts.0.max_text_length', 25_000)
+            ->where('accounts.0.is_default', false)
             ->missing('accounts.0.secret'),
         );
+});
+
+test('owners can set a workspace default account from the accounts page', function () {
+    $owner = User::factory()->create(['email_verified_at' => now()]);
+    $workspace = Workspace::factory()->create(['owner_id' => $owner->id]);
+    WorkspaceMembership::factory()->owner()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $owner->id,
+    ]);
+    $owner->forceFill(['current_workspace_id' => $workspace->id])->save();
+    $account = ConnectedAccount::factory()->create(['workspace_id' => $workspace->id]);
+
+    test()->actingAs($owner)
+        ->post(route('accounts.default', $account))
+        ->assertRedirect(route('accounts.index'));
+
+    expect($workspace->fresh()->default_connected_account_id)->toBe($account->id);
+});
+
+test('members cannot set a workspace default account', function () {
+    $member = User::factory()->create(['email_verified_at' => now()]);
+    $workspace = Workspace::factory()->create();
+    WorkspaceMembership::factory()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $member->id,
+    ]);
+    $member->forceFill(['current_workspace_id' => $workspace->id])->save();
+    $account = ConnectedAccount::factory()->create(['workspace_id' => $workspace->id]);
+
+    test()->actingAs($member)
+        ->post(route('accounts.default', $account))
+        ->assertForbidden();
+
+    expect($workspace->fresh()->default_connected_account_id)->toBeNull();
+});
+
+test('the accounts page marks and lists the workspace default account first', function () {
+    $owner = User::factory()->create(['email_verified_at' => now()]);
+    $workspace = Workspace::factory()->create(['owner_id' => $owner->id]);
+    WorkspaceMembership::factory()->owner()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $owner->id,
+    ]);
+    $owner->forceFill(['current_workspace_id' => $workspace->id])->save();
+    ConnectedAccount::factory()->create(['workspace_id' => $workspace->id, 'handle' => '@regular']);
+    $default = ConnectedAccount::factory()->create(['workspace_id' => $workspace->id, 'handle' => '@default']);
+    $workspace->forceFill(['default_connected_account_id' => $default->id])->save();
+
+    test()->actingAs($owner)->get('/accounts')
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('accounts.0.id', $default->id)
+            ->where('accounts.0.is_default', true)
+            ->where('accounts.0.handle', '@default'),
+        );
+});
+
+test('disconnecting the workspace default account clears the default', function () {
+    $owner = User::factory()->create(['email_verified_at' => now()]);
+    $workspace = Workspace::factory()->create(['owner_id' => $owner->id]);
+    WorkspaceMembership::factory()->owner()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $owner->id,
+    ]);
+    $owner->forceFill(['current_workspace_id' => $workspace->id])->save();
+    $account = ConnectedAccount::factory()->create(['workspace_id' => $workspace->id]);
+    $workspace->forceFill(['default_connected_account_id' => $account->id])->save();
+
+    test()->actingAs($owner)
+        ->delete(route('accounts.destroy', $account))
+        ->assertRedirect(route('accounts.index'));
+
+    expect($workspace->fresh()->default_connected_account_id)->toBeNull();
 });
 
 test('members see the list but cannot manage', function () {

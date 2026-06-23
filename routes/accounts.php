@@ -36,6 +36,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('accounts.reconnect');
 
+    Route::post('accounts/{account}/default', [ConnectedAccountController::class, 'makeDefault'])
+        ->name('accounts.default');
+
     Route::delete('accounts/{account}', [ConnectedAccountController::class, 'destroy'])
         ->name('accounts.destroy');
 });

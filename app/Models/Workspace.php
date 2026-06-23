@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'logo',
     'timezone',
     'owner_id',
+    'default_connected_account_id',
 ])]
 class Workspace extends Model
 {
@@ -36,6 +37,14 @@ class Workspace extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    /**
+     * @return BelongsTo<ConnectedAccount, $this>
+     */
+    public function defaultConnectedAccount(): BelongsTo
+    {
+        return $this->belongsTo(ConnectedAccount::class, 'default_connected_account_id');
     }
 
     /**

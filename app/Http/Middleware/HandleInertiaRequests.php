@@ -86,16 +86,20 @@ class HandleInertiaRequests extends Middleware
         // the context — being explicit keeps shell data correct regardless of
         // middleware ordering and prevents cross-workspace leakage.
         $workspaceId = $user->current_workspace_id;
+        $defaultAccountId = $user->currentWorkspace()->value('default_connected_account_id');
 
         $accounts = ConnectedAccount::query()
             ->where('workspace_id', $workspaceId)
             ->get()
+            ->sortByDesc(fn (ConnectedAccount $account): bool => $account->id === $defaultAccountId)
             ->map(fn (ConnectedAccount $account): array => [
                 'id' => $account->id,
                 'platform' => $account->platform->value,
                 'handle' => $account->handle,
                 'display_name' => $account->display_name,
                 'avatar_url' => $account->avatar_url,
+                'max_text_length' => $account->maxTextLength(),
+                'x_premium' => $account->hasXPremium(),
             ])->values()->all();
 
         $sets = AccountSet::query()

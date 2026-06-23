@@ -10,6 +10,9 @@ export type Account = {
     auth_method: string;
     connected_by: string | null;
     token_expires_at: string | null;
+    max_text_length: number;
+    x_premium: boolean;
+    is_default: boolean;
 };
 
 export type Capability = {
