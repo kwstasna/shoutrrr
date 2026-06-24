@@ -55,7 +55,7 @@ class InstanceSettingsController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'avatar' => "https://api.dicebear.com/9.x/glass/svg?seed={$user->id}",
+                    'avatar' => $user->avatar,
                 ]);
 
         return Inertia::render('settings/instance-admins', [
@@ -68,7 +68,7 @@ class InstanceSettingsController extends Controller
                     'id' => $owner->id,
                     'name' => $owner->name,
                     'email' => $owner->email,
-                    'avatar' => "https://api.dicebear.com/9.x/glass/svg?seed={$owner->id}",
+                    'avatar' => $owner->avatar,
                     'created_at' => $owner->created_at,
                 ]),
             'users' => $users,

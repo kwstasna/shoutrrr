@@ -99,7 +99,7 @@ class WorkspaceSettingsController extends Controller
                 'user_id' => $m->user_id,
                 'name' => $m->user->name,
                 'email' => $m->user->email,
-                'avatar' => "https://api.dicebear.com/9.x/glass/svg?seed={$m->user_id}",
+                'avatar' => $m->user->avatar,
                 'role' => $m->role->value,
                 'is_owner' => $m->isOwner(),
                 'created_at' => $m->created_at,

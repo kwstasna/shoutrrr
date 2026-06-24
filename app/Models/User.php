@@ -8,6 +8,7 @@ use App\Enums\SocialProvider;
 use App\Support\Notifications\NotificationPreferences;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Attributes\Appends;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -39,6 +40,7 @@ use Override;
  * @property Carbon|null $updated_at
  * @property NotificationPreferences|null $notification_preferences
  */
+#[Appends(['avatar'])]
 #[Fillable(['name', 'email', 'password', 'current_workspace_id', 'notification_preferences', 'instance_role'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail, OAuthenticatable, PasskeyUser
@@ -61,6 +63,11 @@ class User extends Authenticatable implements MustVerifyEmail, OAuthenticatable,
             'notification_preferences' => NotificationPreferencesCast::class,
             'instance_role' => InstanceRole::class,
         ];
+    }
+
+    public function getAvatarAttribute(): string
+    {
+        return "https://api.dicebear.com/9.x/glass/svg?seed={$this->attributes['id']}";
     }
 
     /**
