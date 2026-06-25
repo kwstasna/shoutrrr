@@ -27,6 +27,7 @@ function target(id: string, status: TargetStatus): TargetView {
         status,
         error_kind: null,
         error_message: null,
+        attempts: 0,
         remote_id: null,
     };
 }

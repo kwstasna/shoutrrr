@@ -32,6 +32,7 @@ final class PostListItem
                 'status' => $t->status->value,
                 'error_kind' => $t->error_kind?->value,
                 'error_message' => $t->error_message,
+                'attempts' => $t->attempts,
             ])->all(),
         ];
     }

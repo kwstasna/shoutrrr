@@ -2,6 +2,7 @@
 
 use App\Dto\Publishing\PublishContext;
 use App\Dto\Publishing\PublishResult;
+use App\Enums\ConnectedAccountStatus;
 use App\Enums\ErrorKind;
 use App\Enums\Platform;
 use App\Enums\PostStatus;
@@ -150,6 +151,34 @@ test('terminal failure marks the target failed without retry', function () {
 
     Bus::assertNotDispatched(PublishPostTarget::class);
     expect($target->post->refresh()->status)->toBe(PostStatus::Failed);
+});
+
+test('auth expired failure marks the target failed without retrying', function () {
+    Bus::fake();
+    $target = publishTarget();
+    bindConnector(PublishResult::failure(ErrorKind::AuthExpired, 'Unauthorized', 401));
+
+    (new PublishPostTarget($target))->handle(
+        app(PublishConnectorRegistry::class),
+        app(TokenManager::class),
+        app(PostStatusRollup::class),
+        app(BackoffSchedule::class),
+    );
+
+    $target->refresh();
+    expect($target->status)->toBe(PostTargetStatus::Failed)
+        ->and($target->error_kind)->toBe(ErrorKind::AuthExpired)
+        ->and($target->error_message)->toBe('Unauthorized')
+        ->and($target->attempts)->toBe(1)
+        ->and($target->next_attempt_at)->toBeNull();
+    expect($target->account()->firstOrFail()->status)->toBe(ConnectedAccountStatus::NeedsAttention);
+
+    $attempt = PostTargetAttempt::where('post_target_id', $target->id)->sole();
+    expect($attempt->status)->toBe('failed')
+        ->and($attempt->attempt_no)->toBe(1)
+        ->and($attempt->error_kind)->toBe(ErrorKind::AuthExpired);
+
+    Bus::assertNotDispatched(PublishPostTarget::class);
 });
 
 test('retry stops after five attempts', function () {

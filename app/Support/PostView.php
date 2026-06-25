@@ -45,6 +45,7 @@ final class PostView
                     'status' => $target->status->value,
                     'error_kind' => $target->error_kind?->value,
                     'error_message' => $target->error_message,
+                    'attempts' => $target->attempts,
                     'remote_id' => $target->remote_id,
                     'issues' => $splitter->validateSections(
                         $target->sections,

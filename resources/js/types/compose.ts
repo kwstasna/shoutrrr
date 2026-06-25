@@ -106,6 +106,7 @@ export type TargetView = {
     status: TargetStatus;
     error_kind: string | null;
     error_message: string | null;
+    attempts: number;
     remote_id: string | null;
 };
 

@@ -120,6 +120,36 @@ it('soft-deletes partial and failed posts via the remote-delete path', function 
     'failed' => [PostStatus::Failed],
 ]);
 
+it('stops publishing targets before soft-deleting a publishing post', function (): void {
+    Queue::fake();
+    [$user, $workspace] = deleteTestMember();
+    $post = Post::factory()->for($workspace)->create([
+        'author_id' => $user->id, 'status' => PostStatus::Publishing->value,
+    ]);
+    $postedTarget = PostTarget::factory()->for($post)->create([
+        'status' => PostTargetStatus::Publishing->value,
+        'remote_id' => 'remote-1',
+        'remote_ids' => ['remote-1', 'remote-2'],
+    ]);
+    $notPostedTarget = PostTarget::factory()->for($post)->create([
+        'status' => PostTargetStatus::Publishing->value,
+        'remote_id' => null,
+        'remote_ids' => null,
+    ]);
+
+    $this->actingAs($user)->delete(route('posts.destroy', $post))->assertRedirect();
+
+    $post->refresh();
+    expect($post->status)->toBe(PostStatus::Deleted)
+        ->and($post->deleted_at)->not->toBeNull()
+        ->and($postedTarget->refresh()->status)->toBe(PostTargetStatus::Deleting)
+        ->and($notPostedTarget->refresh()->status)->toBe(PostTargetStatus::Deleted);
+
+    Queue::assertPushed(DeletePostTarget::class, 1);
+    Queue::assertPushed(DeletePostTarget::class,
+        fn (DeletePostTarget $job): bool => $job->target->is($postedTarget));
+});
+
 it('soft-deletes a published post with no remote ids and dispatches nothing', function (): void {
     Queue::fake();
     [$user, $workspace] = deleteTestMember();

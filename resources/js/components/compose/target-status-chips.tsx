@@ -25,7 +25,7 @@ const TONE_CLASS: Record<TargetTone, string> = {
  */
 export type ChipTarget = Pick<
     TargetView,
-    'id' | 'platform' | 'status' | 'error_message'
+    'id' | 'platform' | 'status' | 'error_message' | 'attempts'
 > &
     Partial<Pick<TargetView, 'handle' | 'display_name' | 'remote_id'>>;
 
@@ -53,6 +53,7 @@ export function TargetStatusChips({ targets, onRetry, retryingIds }: Props) {
                 const meta = targetStatusMeta(target.status);
                 const isFailed = target.status === 'failed';
                 const isRetrying = retryingIds?.has(target.id) ?? false;
+                const attempts = target.attempts ?? 0;
                 const permalink =
                     target.status === 'published'
                         ? postPermalink(
@@ -97,11 +98,15 @@ export function TargetStatusChips({ targets, onRetry, retryingIds }: Props) {
                             <span>{meta.label}</span>
                         </span>
                         {isFailed && target.error_message && (
-                            <span
-                                className="min-w-0 truncate text-destructive/90"
-                                title={target.error_message}
-                            >
-                                {target.error_message}
+                            <span className="min-w-0 truncate text-destructive/90">
+                                {attempts > 0 && (
+                                    <span className="font-medium">
+                                        Attempt {attempts}:{' '}
+                                    </span>
+                                )}
+                                <span title={target.error_message}>
+                                    {target.error_message}
+                                </span>
                             </span>
                         )}
                         {isFailed && onRetry && (

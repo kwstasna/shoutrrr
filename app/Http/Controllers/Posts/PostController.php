@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Posts;
 
 use App\Dto\Post\DraftData;
 use App\Enums\PostStatus;
+use App\Enums\PostTargetStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Requests\Post\UpdatePostRequest;
@@ -20,6 +21,7 @@ use App\Support\PostView;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -116,25 +118,48 @@ class PostController extends Controller
 
         $post->loadMissing('targets');
 
-        $hadBeenPublished = in_array($post->status, [
-            PostStatus::Published, PostStatus::Partial, PostStatus::Failed,
+        $needsRemoteCleanup = in_array($post->status, [
+            PostStatus::Publishing, PostStatus::Published, PostStatus::Partial, PostStatus::Failed,
         ], true);
 
-        if (! $hadBeenPublished) {
+        if (! $needsRemoteCleanup) {
             $post->delete();
 
             return redirect()->route('posts.index')->with('success', 'Post deleted.');
         }
 
-        $post->targets
-            ->filter(fn (PostTarget $t): bool => $t->remote_id !== null)
-            ->each(fn (PostTarget $t) => DeletePostTarget::dispatch($t));
+        $targetsToDelete = DB::transaction(function () use ($post) {
+            $targetsToDelete = $post->targets
+                ->filter(fn (PostTarget $target): bool => $this->hasRemotePosts($target))
+                ->values();
 
-        $post->forceFill([
-            'status' => PostStatus::Deleted->value,
-            'deleted_at' => now(),
-        ])->save();
+            $targetsToDelete->each(fn (PostTarget $target) => $target->forceFill([
+                'status' => PostTargetStatus::Deleting->value,
+                'next_attempt_at' => null,
+            ])->save());
+
+            $post->targets
+                ->reject(fn (PostTarget $target): bool => $this->hasRemotePosts($target))
+                ->each(fn (PostTarget $target) => $target->forceFill([
+                    'status' => PostTargetStatus::Deleted->value,
+                    'next_attempt_at' => null,
+                ])->save());
+
+            $post->forceFill([
+                'status' => PostStatus::Deleted->value,
+                'deleted_at' => now(),
+            ])->save();
+
+            return $targetsToDelete;
+        });
+
+        $targetsToDelete->each(fn (PostTarget $target) => DeletePostTarget::dispatch($target));
 
         return redirect()->route('posts.index')->with('success', 'Post deleted from connected accounts where possible.');
+    }
+
+    private function hasRemotePosts(PostTarget $target): bool
+    {
+        return $target->remote_id !== null || ($target->remote_ids ?? []) !== [];
     }
 }

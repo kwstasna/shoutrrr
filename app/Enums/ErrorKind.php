@@ -18,8 +18,8 @@ enum ErrorKind: string
     public function isRetryable(): bool
     {
         return match ($this) {
-            self::RateLimited, self::AuthExpired, self::Network, self::ServerError, self::MediaProcessing => true,
-            self::Validation, self::DuplicateContent, self::Unknown => false,
+            self::RateLimited, self::Network, self::ServerError, self::MediaProcessing => true,
+            self::AuthExpired, self::Validation, self::DuplicateContent, self::Unknown => false,
         };
     }
 }

@@ -4,13 +4,13 @@ use App\Enums\ErrorKind;
 
 test('retryable kinds report retryable', function () {
     expect(ErrorKind::RateLimited->isRetryable())->toBeTrue()
-        ->and(ErrorKind::AuthExpired->isRetryable())->toBeTrue()
         ->and(ErrorKind::Network->isRetryable())->toBeTrue()
         ->and(ErrorKind::ServerError->isRetryable())->toBeTrue();
 });
 
 test('terminal kinds report not retryable', function () {
-    expect(ErrorKind::Validation->isRetryable())->toBeFalse()
+    expect(ErrorKind::AuthExpired->isRetryable())->toBeFalse()
+        ->and(ErrorKind::Validation->isRetryable())->toBeFalse()
         ->and(ErrorKind::DuplicateContent->isRetryable())->toBeFalse()
         ->and(ErrorKind::Unknown->isRetryable())->toBeFalse();
 });

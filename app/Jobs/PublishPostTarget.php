@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Dto\Publishing\MediaUploadState;
 use App\Dto\Publishing\PublishContext;
 use App\Dto\Publishing\PublishResult;
+use App\Enums\ConnectedAccountStatus;
 use App\Enums\ErrorKind;
 use App\Enums\PostTargetStatus;
 use App\Exceptions\TokenRefreshException;
@@ -248,6 +249,12 @@ class PublishPostTarget implements ShouldQueue
             'error_message' => $result->errorMessage,
             'next_attempt_at' => null,
         ])->save();
+
+        if ($kind === ErrorKind::AuthExpired) {
+            $target->account()->firstOrFail()->forceFill([
+                'status' => ConnectedAccountStatus::NeedsAttention->value,
+            ])->save();
+        }
 
         $this->notifyFailed($target, $kind);
     }

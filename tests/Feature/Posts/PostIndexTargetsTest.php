@@ -32,6 +32,7 @@ test('posts index payload includes per-target status and published_at', function
         'status' => PostTargetStatus::Failed->value,
         'error_kind' => ErrorKind::RateLimited->value,
         'error_message' => 'slow down',
+        'attempts' => 3,
     ]);
 
     $this->actingAs($user)
@@ -43,5 +44,6 @@ test('posts index payload includes per-target status and published_at', function
                 ->where('posts.data.0.targets.0.platform', 'x')
                 ->where('posts.data.0.targets.0.status', 'failed')
                 ->where('posts.data.0.targets.0.error_kind', 'rate_limited')
-                ->where('posts.data.0.targets.0.error_message', 'slow down')));
+                ->where('posts.data.0.targets.0.error_message', 'slow down')
+                ->where('posts.data.0.targets.0.attempts', 3)));
 });

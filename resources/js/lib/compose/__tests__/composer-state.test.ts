@@ -49,6 +49,7 @@ function hydrated(): ReturnType<typeof composerReducer> {
                 status: 'pending',
                 error_kind: null,
                 error_message: null,
+                attempts: 0,
                 remote_id: null,
             },
             {
@@ -65,6 +66,7 @@ function hydrated(): ReturnType<typeof composerReducer> {
                 status: 'pending',
                 error_kind: null,
                 error_message: null,
+                attempts: 0,
                 remote_id: null,
             },
         ],

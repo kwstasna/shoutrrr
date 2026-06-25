@@ -13,6 +13,7 @@ test('post view exposes per-target publish status and root published_at', functi
         'status' => PostTargetStatus::Failed->value,
         'error_kind' => ErrorKind::RateLimited->value,
         'error_message' => 'slow down',
+        'attempts' => 3,
         'remote_id' => 'abc',
     ]);
 
@@ -22,5 +23,6 @@ test('post view exposes per-target publish status and root published_at', functi
         ->and($view['targets'][0]['status'])->toBe('failed')
         ->and($view['targets'][0]['error_kind'])->toBe('rate_limited')
         ->and($view['targets'][0]['error_message'])->toBe('slow down')
+        ->and($view['targets'][0]['attempts'])->toBe(3)
         ->and($view['targets'][0]['remote_id'])->toBe('abc');
 });
