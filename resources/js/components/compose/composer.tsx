@@ -1,9 +1,11 @@
 import { Link, useHttp } from '@inertiajs/react';
 import { Plug } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import WorkspaceMentionController from '@/actions/App/Http/Controllers/WorkspaceMentionController';
 import { useAutosave } from '@/hooks/compose/use-autosave';
+import { useImageEditor } from '@/hooks/compose/use-image-editor';
 import { useMediaUploads } from '@/hooks/compose/use-media-uploads';
 import { useNextSlot } from '@/hooks/compose/use-next-slot';
 import { usePublishStatus } from '@/hooks/compose/use-publish-status';
@@ -19,6 +21,11 @@ import {
     replaceMentionTokens,
     syncMentionsFromText,
 } from '@/lib/compose/mentions';
+import {
+    defaultSettings,
+    normalizeSettings,
+    type EditSettings,
+} from '@/lib/image-editor/settings';
 import { postCapabilities } from '@/lib/posts/capabilities';
 import { index as accountsRoute } from '@/routes/accounts';
 import {
@@ -38,11 +45,25 @@ import { ComposerToolbar } from './composer-toolbar';
 import { ConflictDialog } from './conflict-dialog';
 import DestinationSelector from './destination-selector';
 import EditorBody from './editor-body';
+import { ImageEditor } from './image-editor';
 import PlatformTabs from './platform-tabs';
 import SaveIndicator from './save-indicator';
 import { ScheduleTray } from './schedule-tray';
 import { SubmitBar } from './submit-bar';
 import { TargetStatusChips } from './target-status-chips';
+
+/** What the image editor is currently working on. */
+type Editing =
+    | {
+          kind: 'batch';
+          items: { file: File; url: string }[];
+          index: number;
+      }
+    | { kind: 'reedit'; url: string; settings: EditSettings; mediaId: string }
+    | { kind: 'raw'; url: string; mediaId: string };
+
+/** Stable fallback so a closed editor doesn't reallocate settings each render. */
+const DEFAULT_EDIT_SETTINGS = defaultSettings();
 
 type ComposerProps = {
     post: PostView | null;
@@ -165,6 +186,181 @@ export default function Composer({
         onEnsurePost: ensurePost,
         onAddMedia: (m) => dispatch({ type: 'addMedia', media: m }),
     });
+
+    const imageEditor = useImageEditor({
+        onEnsurePost: ensurePost,
+        onAddMedia: (m) => dispatch({ type: 'addMedia', media: m }),
+        onReplaceMedia: (m) => dispatch({ type: 'replaceMedia', media: m }),
+    });
+
+    // The editor opens automatically when image(s) are added and when an attached
+    // image is clicked. A multi-image add becomes a `batch` edited one item at a
+    // time; the editor shows the batch as a thumbnail strip.
+    const [editing, setEditing] = useState<Editing | null>(null);
+    // Revoke any outstanding batch object URLs if the composer unmounts mid-batch.
+    const editingRef = useRef<Editing | null>(null);
+    editingRef.current = editing;
+    useEffect(
+        () => () => {
+            const e = editingRef.current;
+            if (e?.kind === 'batch') {
+                for (const it of e.items) {
+                    URL.revokeObjectURL(it.url);
+                }
+            }
+        },
+        [],
+    );
+
+    // Advance to the next batch image, or close the editor (revoking the batch's
+    // object URLs) when the batch is done. Re-edits just close.
+    function endEditingStep() {
+        if (editing?.kind === 'batch') {
+            if (editing.index + 1 < editing.items.length) {
+                setEditing({ ...editing, index: editing.index + 1 });
+
+                return;
+            }
+            for (const it of editing.items) {
+                URL.revokeObjectURL(it.url);
+            }
+        }
+        setEditing(null);
+    }
+
+    // Split a picked/dropped/pasted batch: videos upload directly; images open
+    // the editor as a batch (edited one at a time).
+    async function handleAddedFiles(files: FileList | File[]): Promise<void> {
+        const all = Array.from(files);
+        const videos = all.filter((f) => f.type.startsWith('video/'));
+        // Anything that isn't a video is treated as an image: some clipboard
+        // pastes report an empty/unknown MIME type, and the server validates the
+        // real content type on upload.
+        const images = all.filter((f) => !f.type.startsWith('video/'));
+
+        // A post is one video OR images, never both — decide before uploading
+        // anything, so a mixed drop doesn't half-attach the video.
+        const hasVideo = state.media.some((m) => m.kind === 'video');
+        const hasImage = state.media.some((m) => m.kind !== 'video');
+        if (
+            (videos.length > 0 && (images.length > 0 || hasImage)) ||
+            (images.length > 0 && hasVideo)
+        ) {
+            toast.error('A post can contain one video or images, not both.');
+
+            return;
+        }
+
+        if (videos.length > 0) {
+            void mediaUploads.handleFiles(videos);
+
+            return;
+        }
+        if (images.length === 0) {
+            return;
+        }
+        setEditing({
+            kind: 'batch',
+            items: images.map((f) => ({
+                file: f,
+                url: URL.createObjectURL(f),
+            })),
+            index: 0,
+        });
+    }
+
+    // Re-open an attached image: a beautified one rehydrates from its persisted
+    // source + settings; a plain one is beautified from scratch.
+    function openImage(mediaId: string) {
+        const m = state.media.find((x) => x.id === mediaId);
+        if (!m || m.kind === 'video') {
+            return;
+        }
+        if (m.edit_settings && m.source_url) {
+            setEditing({
+                kind: 'reedit',
+                url: m.source_url,
+                settings: normalizeSettings(m.edit_settings),
+                mediaId: m.id,
+            });
+        } else {
+            setEditing({ kind: 'raw', url: m.url, mediaId: m.id });
+        }
+    }
+
+    // Apply: persist the composed image, then advance the batch / close.
+    async function applyEditing(
+        composed: Blob,
+        settings: EditSettings,
+    ): Promise<void> {
+        if (!editing) {
+            return;
+        }
+        // On a failed save the editor stays open (the hook already toasted) so the
+        // user can retry — and, crucially, we never drop the original attachment.
+        if (editing.kind === 'batch') {
+            const ok = await imageEditor.applyNew(
+                composed,
+                editing.items[editing.index].file,
+                settings,
+            );
+            if (!ok) {
+                return;
+            }
+        } else if (editing.kind === 'reedit') {
+            const ok = await imageEditor.applyEdit(
+                editing.mediaId,
+                composed,
+                settings,
+            );
+            if (!ok) {
+                return;
+            }
+        } else {
+            // A plain image beautified for the first time: keep the raw image as
+            // the source, attach the composed result, drop the raw attachment.
+            const rawBlob = await fetch(editing.url).then((r) => r.blob());
+            const ok = await imageEditor.applyNew(composed, rawBlob, settings);
+            if (!ok) {
+                return;
+            }
+            dispatch({ type: 'removeMedia', mediaId: editing.mediaId });
+        }
+        endEditingStep();
+    }
+
+    // Continue without editing: a freshly-added image still attaches as-is (raw);
+    // re-edits just close with no change.
+    function cancelEditing() {
+        if (editing?.kind === 'batch') {
+            void mediaUploads.handleFiles([editing.items[editing.index].file]);
+        }
+        endEditingStep();
+    }
+
+    // Remove/discard: drop a fresh upload without attaching, or remove an existing
+    // attached image from the post.
+    function discardEditing() {
+        if (editing?.kind === 'reedit' || editing?.kind === 'raw') {
+            dispatch({ type: 'removeMedia', mediaId: editing.mediaId });
+        }
+        endEditingStep();
+    }
+
+    // Resolve the editor's current source/settings/queue from `editing`.
+    const editorSourceUrl =
+        editing?.kind === 'batch'
+            ? editing.items[editing.index].url
+            : (editing?.url ?? null);
+    const editorSettings =
+        editing?.kind === 'reedit' ? editing.settings : DEFAULT_EDIT_SETTINGS;
+    const editorQueue =
+        editing?.kind === 'batch'
+            ? {
+                  thumbnails: editing.items.map((it) => it.url),
+                  index: editing.index,
+              }
+            : undefined;
 
     // Persist a destination change immediately rather than waiting out the
     // autosave debounce. This MUST run in an effect — AFTER the reducer commits
@@ -397,7 +593,7 @@ export default function Composer({
                 onBlur={flush}
                 editable={!readOnly}
                 autoFocus={autoFocusEditor}
-                onPasteFiles={readOnly ? undefined : mediaUploads.handleFiles}
+                onPasteFiles={readOnly ? undefined : handleAddedFiles}
                 overrideBanner={overrideActive}
                 activePlatformLabel={activeAccount?.platform ?? null}
                 onResetOverride={() =>
@@ -524,8 +720,23 @@ export default function Composer({
                         })
                     }
                     pending={mediaUploads.pending}
-                    handleFiles={mediaUploads.handleFiles}
+                    handleFiles={handleAddedFiles}
                     dismissPending={mediaUploads.dismissPending}
+                    onImageClick={openImage}
+                />
+            )}
+
+            {!readOnly && (
+                <ImageEditor
+                    open={editing !== null}
+                    sourceUrl={editorSourceUrl}
+                    initialSettings={editorSettings}
+                    onApply={applyEditing}
+                    onCancel={cancelEditing}
+                    onDiscard={discardEditing}
+                    variant={editing?.kind === 'batch' ? 'new' : 'existing'}
+                    isSaving={imageEditor.isSaving}
+                    queue={editorQueue}
                 />
             )}
 

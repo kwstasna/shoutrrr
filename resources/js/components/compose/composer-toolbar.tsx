@@ -29,6 +29,8 @@ type Props = {
     handleFiles: (files: FileList) => Promise<void>;
     /** Drop a failed/pending upload chip. */
     dismissPending: (tempId: string) => void;
+    /** Click an attached image to (re)open it in the editor. */
+    onImageClick?: (mediaId: string) => void;
 };
 
 export function ComposerToolbar({
@@ -47,6 +49,7 @@ export function ComposerToolbar({
     pending,
     handleFiles,
     dismissPending,
+    onImageClick,
 }: Props) {
     const input = useRef<HTMLInputElement | null>(null);
 
@@ -117,6 +120,7 @@ export function ComposerToolbar({
                 onRemove={onRemove}
                 onDismissPending={dismissPending}
                 readOnly={readOnly}
+                onImageClick={onImageClick}
             />
 
             <div className="ml-auto sm:flex-1" />

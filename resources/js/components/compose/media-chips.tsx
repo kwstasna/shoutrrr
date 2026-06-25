@@ -1,6 +1,6 @@
-import { X } from 'lucide-react';
+import { Eye, EyeOff, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
     Tooltip,
@@ -64,6 +64,8 @@ type Props = {
     onDismissPending: (tempId: string) => void;
     /** Read-only post: show the images, no add/remove/reorder/exclude affordances. */
     readOnly?: boolean;
+    /** Click an image to (re)open it in the editor. */
+    onImageClick?: (mediaId: string) => void;
 };
 
 /** A square overlay button that protrudes past the chip's top-right corner. */
@@ -92,7 +94,8 @@ function CornerButton({
                 'transition-opacity hover:bg-destructive/90',
                 always
                     ? 'flex'
-                    : 'opacity-0 group-focus-within/chip:opacity-100 group-hover/chip:opacity-100',
+                    : // Always visible on touch (no hover); reveal on hover/focus on pointer devices.
+                      'max-md:opacity-100 md:opacity-0 md:group-focus-within/chip:opacity-100 md:group-hover/chip:opacity-100',
             )}
         >
             {children}
@@ -110,8 +113,12 @@ export function MediaChips({
     onRemove,
     onDismissPending,
     readOnly = false,
+    onImageClick,
 }: Props) {
     const [dragIdx, setDragIdx] = useState<number | null>(null);
+    // True only once a real drag (reorder) has started, so the click that ends a
+    // drag doesn't also open the editor. Reset at the start of every interaction.
+    const dragged = useRef(false);
 
     if (media.length === 0 && pending.length === 0) {
         return null;
@@ -158,7 +165,10 @@ export function MediaChips({
                             <div
                                 className="group/chip relative"
                                 draggable
-                                onDragStart={() => setDragIdx(idx)}
+                                onDragStart={() => {
+                                    dragged.current = true;
+                                    setDragIdx(idx);
+                                }}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => {
                                     e.preventDefault();
@@ -171,11 +181,34 @@ export function MediaChips({
                             >
                                 <button
                                     type="button"
-                                    aria-label={`Media ${idx + 1}`}
-                                    aria-pressed={!excluded}
-                                    onClick={() => onToggleExclude(m.id)}
+                                    aria-label={
+                                        m.kind === 'video'
+                                            ? `Media ${idx + 1}`
+                                            : `Edit media ${idx + 1}`
+                                    }
+                                    aria-pressed={
+                                        m.kind === 'video'
+                                            ? !excluded
+                                            : undefined
+                                    }
+                                    onPointerDown={() => {
+                                        dragged.current = false;
+                                    }}
+                                    onClick={() => {
+                                        // Skip the click that ends a reorder drag.
+                                        if (dragged.current) {
+                                            return;
+                                        }
+                                        // Anything that isn't a video is an editable
+                                        // image (matches how the thumbnail renders).
+                                        if (m.kind === 'video') {
+                                            onToggleExclude(m.id);
+                                        } else {
+                                            onImageClick?.(m.id);
+                                        }
+                                    }}
                                     className={cn(
-                                        'block size-7 cursor-grab overflow-hidden rounded-md border border-border active:cursor-grabbing',
+                                        'block size-7 cursor-pointer overflow-hidden rounded-md border border-border',
                                         'transition-[opacity,transform]',
                                         excluded &&
                                             'opacity-40 ring-1 ring-destructive/50',
@@ -194,14 +227,53 @@ export function MediaChips({
                                         aria-hidden="true"
                                     />
                                 </CornerButton>
+                                {/* Per-account include/exclude — top-left, so it
+                                    doesn't collide with edit (bottom-right) or remove. */}
+                                {m.kind !== 'video' && activePlatform && (
+                                    <button
+                                        type="button"
+                                        aria-label={
+                                            excluded
+                                                ? `Include on ${activePlatform}`
+                                                : `Exclude on ${activePlatform}`
+                                        }
+                                        aria-pressed={!excluded}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleExclude(m.id);
+                                        }}
+                                        className={cn(
+                                            'absolute -top-1.5 -left-1.5 z-10 grid size-4 place-items-center rounded-full',
+                                            'border border-background bg-foreground text-background shadow-sm',
+                                            'transition-opacity group-focus-within/chip:opacity-100 group-hover/chip:opacity-100',
+                                            excluded
+                                                ? 'opacity-100'
+                                                : 'opacity-0 max-md:opacity-100',
+                                        )}
+                                    >
+                                        {excluded ? (
+                                            <EyeOff
+                                                className="size-2.5"
+                                                aria-hidden="true"
+                                            />
+                                        ) : (
+                                            <Eye
+                                                className="size-2.5"
+                                                aria-hidden="true"
+                                            />
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="text-[11px]">
-                            {activePlatform
-                                ? excluded
-                                    ? `Excluded on ${activePlatform} — click to include`
-                                    : `Included on ${activePlatform} — click to exclude`
-                                : 'Attached media'}
+                            {m.kind === 'video'
+                                ? activePlatform
+                                    ? excluded
+                                        ? `Click to include on ${activePlatform}`
+                                        : `Click to exclude on ${activePlatform}`
+                                    : 'Attached media'
+                                : 'Click to edit'}
                         </TooltipContent>
                     </Tooltip>
                 );

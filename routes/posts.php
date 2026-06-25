@@ -8,6 +8,7 @@ use App\Http\Controllers\Posts\CalendarController;
 use App\Http\Controllers\Posts\ComposerController;
 use App\Http\Controllers\Posts\NextSlotController;
 use App\Http\Controllers\Posts\PostController;
+use App\Http\Controllers\Posts\PostImageEditController;
 use App\Http\Controllers\Posts\PostingScheduleController;
 use App\Http\Controllers\Posts\PostMediaController;
 use App\Http\Controllers\Posts\PostMetricsRefreshController;
@@ -78,6 +79,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('posts/{post}/media', [PostMediaController::class, 'store'])->name('posts.media.store');
         Route::post('posts/{post}/media/video-url', [PostVideoUploadController::class, 'url'])->name('posts.media.video-url');
         Route::post('posts/{post}/media/video', [PostVideoUploadController::class, 'store'])->name('posts.media.video');
+        Route::post('posts/{post}/image-edit', [PostImageEditController::class, 'store'])->name('posts.image-edit.store');
+        Route::put('posts/{post}/image-edit/{media}', [PostImageEditController::class, 'update'])->name('posts.image-edit.update');
     });
     Route::delete('posts/{post}/media/{media}', [PostMediaController::class, 'destroy'])->name('posts.media.destroy');
 

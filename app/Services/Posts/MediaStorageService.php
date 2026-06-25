@@ -29,6 +29,7 @@ class MediaStorageService
             'post_id' => null,
             'disk' => $disk,
             'path' => $path,
+            'kind' => 'image',
             'mime' => (string) $file->getMimeType(),
             'size_bytes' => $file->getSize(),
             'width' => $dimensions[0] ?? null,
@@ -67,6 +68,7 @@ class MediaStorageService
             'post_id' => null,
             'disk' => $disk,
             'path' => $path,
+            'kind' => 'image',
             'mime' => $image['mime'],
             'size_bytes' => strlen($image['bytes']),
             'width' => $dimensions[0] ?? null,
@@ -74,5 +76,66 @@ class MediaStorageService
             'alt_text' => $altText,
             'position' => 0,
         ]);
+    }
+
+    /**
+     * Store a beautified image: the composed image becomes the post's media,
+     * the original source is retained for non-destructive re-editing.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public function storeBeautified(string $workspaceId, UploadedFile $composed, UploadedFile $source, array $settings): PostMedia
+    {
+        $disk = 'public';
+        $path = $composed->store('media/'.$workspaceId, $disk);
+        $sourcePath = $source->store('media/'.$workspaceId, $disk);
+
+        $dimensions = @getimagesize($composed->getRealPath()) ?: [null, null];
+
+        return PostMedia::create([
+            'workspace_id' => $workspaceId,
+            'post_id' => null,
+            'disk' => $disk,
+            'path' => $path,
+            'kind' => 'image',
+            'source_disk' => $disk,
+            'source_path' => $sourcePath,
+            'edit_settings' => $settings,
+            'mime' => (string) $composed->getMimeType(),
+            'size_bytes' => $composed->getSize(),
+            'width' => $dimensions[0] ?? null,
+            'height' => $dimensions[1] ?? null,
+            'alt_text' => null,
+            'position' => 0,
+        ]);
+    }
+
+    /**
+     * Replace the composed file + settings of an existing beautified media, keeping its source.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public function replaceBeautified(PostMedia $media, UploadedFile $composed, array $settings): PostMedia
+    {
+        // Store the new file and commit the row before deleting the old file, so a
+        // failed store never leaves the row pointing at a now-missing path.
+        $oldPath = $media->path;
+        $path = $composed->store('media/'.$media->workspace_id, $media->disk);
+        $dimensions = @getimagesize($composed->getRealPath()) ?: [null, null];
+
+        $media->update([
+            'path' => $path,
+            'edit_settings' => $settings,
+            'mime' => (string) $composed->getMimeType(),
+            'size_bytes' => $composed->getSize(),
+            'width' => $dimensions[0] ?? null,
+            'height' => $dimensions[1] ?? null,
+        ]);
+
+        if ($oldPath !== $path) {
+            Storage::disk($media->disk)->delete($oldPath);
+        }
+
+        return $media->refresh();
     }
 }
