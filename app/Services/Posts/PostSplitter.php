@@ -18,6 +18,12 @@ class PostSplitter
      */
     public function split(string $text, Platform $platform, bool $autoSplit, ?int $maxLength = null): SplitResult
     {
+        if ($platform->threadMax() !== null) {
+            $sections = [implode("\n", $this->manualSegments($text))];
+
+            return new SplitResult($sections, $this->validateSections($sections, $platform, 0, $maxLength));
+        }
+
         $segments = $this->manualSegments($text);
 
         $sections = [];

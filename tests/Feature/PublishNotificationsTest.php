@@ -77,6 +77,17 @@ test('failed notification payload identifies the post, platform and account', fu
         ->and($payload['href'])->toBe(route('posts.show', $post));
 });
 
+test('account needs attention notification links to accounts page', function () {
+    $user = User::factory()->create();
+    $account = ConnectedAccount::factory()->create(['platform' => Platform::X->value, 'handle' => '@acme']);
+
+    $payload = (new AccountNeedsAttentionNotification($account, 'ws-123'))->toArray($user);
+
+    expect($payload['title'])->toBe('X account needs attention')
+        ->and($payload['body'])->toBe('@acme needs to be reconnected.')
+        ->and($payload['href'])->toBe(route('accounts.index'));
+});
+
 test('payload excerpt falls back for media-only posts', function () {
     $user = User::factory()->create();
     $post = Post::factory()->for($user, 'author')->create(['base_text' => '']);

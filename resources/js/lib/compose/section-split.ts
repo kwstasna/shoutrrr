@@ -71,12 +71,23 @@ export function packSections(
  * the analogue of the server's `PostSplitter::split(...).sections` for the
  * common case where no single paragraph exceeds the limit.
  */
+export function manualSegments(text: string): string[] {
+    const segments = text
+        .split(/^\s*---\s*$/gm)
+        .map((segment) => segment.trim())
+        .filter((segment) => segment !== '');
+
+    return segments.length > 0 ? segments : [''];
+}
+
 export function previewSections(
     text: string,
     platform: PlatformName,
     limit: number,
 ): string[] {
-    return packSections(text.split('\n'), platform, limit).map(
-        (section) => section.text,
+    return manualSegments(text).flatMap((segment) =>
+        packSections(segment.split('\n'), platform, limit).map(
+            (section) => section.text,
+        ),
     );
 }

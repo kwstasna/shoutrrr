@@ -23,7 +23,7 @@ export default function ComposePage({
     return (
         <>
             <Head title="Compose" />
-            <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6">
+            <div className="mx-auto w-full max-w-7xl px-4 pt-6 pb-16 sm:px-6">
                 <div className="sticky top-0 z-10 mb-5 flex items-center gap-2 border-b border-border bg-background/85 px-2 py-2 backdrop-blur-md">
                     <Button
                         asChild

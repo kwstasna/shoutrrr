@@ -180,6 +180,16 @@ describe('composerReducer', () => {
         expect(state.autoSplitByAccount.a1).toBe(false);
     });
 
+    it('disables auto split for all selected accounts after a manual split', () => {
+        const state = composerReducer(hydrated(), {
+            type: 'disableAutoSplit',
+            accountIds: ['a1', 'a2'],
+        });
+
+        expect(state.autoSplitByAccount).toEqual({ a1: false, a2: false });
+        expect(state.saveState).toBe('dirty');
+    });
+
     it('transitions through a successful save', () => {
         let state = composerReducer(hydrated(), {
             type: 'updateBaseText',

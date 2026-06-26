@@ -55,3 +55,93 @@ test('mark-all-read clears unread for the current workspace and global notificat
     expect($user->unreadNotifications()->count())->toBe(1);
     expect($user->notifications()->find($bId)->read_at)->toBeNull();
 });
+
+test('a user can delete one notification', function () {
+    $user = User::factory()->create();
+    $ws = Workspace::factory()->create();
+    $user->forceFill(['current_workspace_id' => $ws->id])->save();
+    $id = makeNotification($user, $ws->id);
+
+    $this->actingAs($user)->delete(route('notifications.destroy', $id))->assertRedirect();
+
+    expect($user->notifications()->find($id))->toBeNull();
+});
+
+test('a user cannot delete another users notification', function () {
+    $owner = User::factory()->create();
+    $other = User::factory()->create();
+    $ws = Workspace::factory()->create();
+    $id = makeNotification($owner, $ws->id);
+
+    $this->actingAs($other)->delete(route('notifications.destroy', $id))->assertNotFound();
+
+    expect($owner->notifications()->find($id))->not->toBeNull();
+});
+
+test('delete-all removes notifications for the current workspace and global notifications only', function () {
+    $user = User::factory()->create();
+    $wsA = Workspace::factory()->create();
+    $wsB = Workspace::factory()->create();
+    $user->forceFill(['current_workspace_id' => $wsA->id])->save();
+    $aId = makeNotification($user, $wsA->id);
+    $globalId = makeNotification($user, null);
+    $bId = makeNotification($user, $wsB->id);
+
+    $this->actingAs($user)->delete(route('notifications.destroy-all'))->assertRedirect();
+
+    expect($user->notifications()->find($aId))->toBeNull();
+    expect($user->notifications()->find($globalId))->toBeNull();
+    expect($user->notifications()->find($bId))->not->toBeNull();
+});
+
+test('a json request can delete one notification without a redirect', function () {
+    $user = User::factory()->create();
+    $ws = Workspace::factory()->create();
+    $user->forceFill(['current_workspace_id' => $ws->id])->save();
+    $id = makeNotification($user, $ws->id);
+
+    $this->actingAs($user)
+        ->deleteJson(route('notifications.destroy', $id))
+        ->assertNoContent();
+
+    expect($user->notifications()->find($id))->toBeNull();
+});
+
+test('a json request can delete all notifications without a redirect', function () {
+    $user = User::factory()->create();
+    $ws = Workspace::factory()->create();
+    $user->forceFill(['current_workspace_id' => $ws->id])->save();
+    $id = makeNotification($user, $ws->id);
+
+    $this->actingAs($user)
+        ->deleteJson(route('notifications.destroy-all'))
+        ->assertNoContent();
+
+    expect($user->notifications()->find($id))->toBeNull();
+});
+
+test('a json request can mark one notification read without a redirect', function () {
+    $user = User::factory()->create();
+    $ws = Workspace::factory()->create();
+    $user->forceFill(['current_workspace_id' => $ws->id])->save();
+    $id = makeNotification($user, $ws->id);
+
+    $this->actingAs($user)
+        ->postJson(route('notifications.read', $id))
+        ->assertNoContent();
+
+    expect($user->notifications()->find($id)->read_at)->not->toBeNull();
+});
+
+test('a json request can mark all notifications read without a redirect', function () {
+    $user = User::factory()->create();
+    $ws = Workspace::factory()->create();
+    $user->forceFill(['current_workspace_id' => $ws->id])->save();
+    makeNotification($user, $ws->id);
+
+    $this->actingAs($user)
+        ->postJson(route('notifications.read-all'))
+        ->assertNoContent();
+
+    expect($user->unreadNotifications()->count())->toBe(0);
+});

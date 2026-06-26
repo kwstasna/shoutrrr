@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    shouldConvertEmptyParagraphToSectionBreak,
+    shouldDeleteSectionBreakWithTrailingEmptyParagraph,
+} from '@/lib/compose/tiptap/section-break';
+
+import {
     hasPasteableMedia,
     isPasteableMediaFile,
     shouldSelectMentionNameInput,
@@ -64,5 +69,73 @@ describe('hasPasteableMedia', () => {
         expect(hasPasteableMedia(null)).toBe(false);
         expect(hasPasteableMedia(undefined)).toBe(false);
         expect(hasPasteableMedia(fileList(file('text/html')))).toBe(false);
+    });
+});
+
+describe('double-enter post splitting', () => {
+    it('turns Enter on an empty paragraph after text into a section break', () => {
+        expect(
+            shouldConvertEmptyParagraphToSectionBreak({
+                currentBlockType: 'paragraph',
+                currentText: '',
+                previousBlockType: 'paragraph',
+            }),
+        ).toBe(true);
+    });
+
+    it('leaves the first empty line and repeated blank lines alone', () => {
+        expect(
+            shouldConvertEmptyParagraphToSectionBreak({
+                currentBlockType: 'paragraph',
+                currentText: '',
+                previousBlockType: null,
+            }),
+        ).toBe(false);
+        expect(
+            shouldConvertEmptyParagraphToSectionBreak({
+                currentBlockType: 'paragraph',
+                currentText: '',
+                previousBlockType: 'sectionBreak',
+            }),
+        ).toBe(false);
+    });
+
+    it('does not interrupt normal Enter behavior while text is present', () => {
+        expect(
+            shouldConvertEmptyParagraphToSectionBreak({
+                currentBlockType: 'paragraph',
+                currentText: 'still writing',
+                previousBlockType: 'paragraph',
+            }),
+        ).toBe(false);
+    });
+});
+
+describe('delete empty line after post split', () => {
+    it('deletes the split when Backspace is pressed in its trailing empty paragraph', () => {
+        expect(
+            shouldDeleteSectionBreakWithTrailingEmptyParagraph({
+                currentBlockType: 'paragraph',
+                currentText: '',
+                previousBlockType: 'sectionBreak',
+            }),
+        ).toBe(true);
+    });
+
+    it('keeps normal Backspace behavior outside the trailing empty split paragraph', () => {
+        expect(
+            shouldDeleteSectionBreakWithTrailingEmptyParagraph({
+                currentBlockType: 'paragraph',
+                currentText: 'next post',
+                previousBlockType: 'sectionBreak',
+            }),
+        ).toBe(false);
+        expect(
+            shouldDeleteSectionBreakWithTrailingEmptyParagraph({
+                currentBlockType: 'paragraph',
+                currentText: '',
+                previousBlockType: 'paragraph',
+            }),
+        ).toBe(false);
     });
 });

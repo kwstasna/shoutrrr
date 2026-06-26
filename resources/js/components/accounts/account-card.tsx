@@ -51,7 +51,17 @@ function ReconnectBlueskyDialog({ account }: { account: Account }) {
                 <DialogHeader>
                     <DialogTitle>Reconnect {account.handle}</DialogTitle>
                     <DialogDescription>
-                        Re-enter the app password for this Bluesky account.
+                        Re-enter the app password for this Bluesky account. Use
+                        an{' '}
+                        <a
+                            href="https://bsky.app/settings/app-passwords"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                        >
+                            app password
+                        </a>{' '}
+                        instead of your main password.
                     </DialogDescription>
                 </DialogHeader>
                 <Form

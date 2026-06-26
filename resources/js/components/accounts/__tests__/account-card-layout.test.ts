@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { ACCOUNT_CARD_ACTIONS_CLASS } from '../account-card';
@@ -5,5 +8,18 @@ import { ACCOUNT_CARD_ACTIONS_CLASS } from '../account-card';
 describe('account card layout', () => {
     it('lets management actions wrap inside the card', () => {
         expect(ACCOUNT_CARD_ACTIONS_CLASS).toContain('flex-wrap');
+    });
+
+    it('links Bluesky reconnect users to app passwords', () => {
+        const source = readFileSync(
+            resolve(
+                process.cwd(),
+                'resources/js/components/accounts/account-card.tsx',
+            ),
+            'utf8',
+        );
+
+        expect(source).toContain('https://bsky.app/settings/app-passwords');
+        expect(source).toContain('app password');
     });
 });

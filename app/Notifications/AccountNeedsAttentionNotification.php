@@ -41,7 +41,7 @@ class AccountNeedsAttentionNotification extends Notification implements ShouldQu
             'event' => NotificationType::AccountNeedsAttention->value,
             'title' => $this->account->platform->label().' account needs attention',
             'body' => $this->account->handle.' needs to be reconnected.',
-            'href' => route('connections.edit'),
+            'href' => route('accounts.index'),
             'icon' => 'plug',
         ]);
     }
@@ -51,6 +51,6 @@ class AccountNeedsAttentionNotification extends Notification implements ShouldQu
         return (new MailMessage)
             ->subject('A connected account needs attention')
             ->line($this->account->handle.' needs to be reconnected to keep publishing.')
-            ->action('Reconnect account', route('connections.edit'));
+            ->action('Reconnect account', route('accounts.index'));
     }
 }

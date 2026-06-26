@@ -1,5 +1,5 @@
 import { Link, router, useHttp, usePage } from '@inertiajs/react';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell, Loader2, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import {
 import { cn } from '@/lib/utils';
 import {
     index as notificationsIndex,
+    destroy as deleteNotification,
+    destroyAll as deleteAllNotifications,
     read as markRead,
     readAll as markAllRead,
 } from '@/routes/notifications';
@@ -23,19 +25,50 @@ import type {
 /** Load the next page once the user scrolls within this many px of the bottom. */
 const SCROLL_THRESHOLD = 64;
 
+const readNotificationIds = new Set<string>();
+const deletedNotificationIds = new Set<string>();
+
+function applyLocalNotificationState(
+    data: NotificationsData,
+): NotificationsData {
+    const items = data.items
+        .filter((notification) => !deletedNotificationIds.has(notification.id))
+        .map((notification) =>
+            readNotificationIds.has(notification.id)
+                ? { ...notification, read: true }
+                : notification,
+        );
+    const locallyClearedUnreadCount = data.items.filter(
+        (notification) =>
+            !notification.read &&
+            (readNotificationIds.has(notification.id) ||
+                deletedNotificationIds.has(notification.id)),
+    ).length;
+
+    return {
+        ...data,
+        items,
+        unreadCount: Math.max(0, data.unreadCount - locallyClearedUnreadCount),
+    };
+}
+
 export function NotificationBell() {
     const { notifications } = usePage().props;
-    const [items, setItems] = useState<NotificationItem[]>(notifications.items);
+    const initialNotifications = applyLocalNotificationState(notifications);
+    const [items, setItems] = useState<NotificationItem[]>(
+        initialNotifications.items,
+    );
     const [cursor, setCursor] = useState<string | null>(
-        notifications.nextCursor,
+        initialNotifications.nextCursor,
     );
     // Authoritative total from the server — `items` only holds loaded pages, so
     // deriving the count from it would undercount once more pages exist.
-    const [unread, setUnread] = useState(notifications.unreadCount);
+    const [unread, setUnread] = useState(initialNotifications.unreadCount);
     const { get, processing } = useHttp<
         Record<string, never>,
         NotificationsData
     >({});
+    const { post, delete: destroy } = useHttp<Record<string, never>, null>({});
     // Synchronous guard: `processing` state lags behind rapid scroll events, so
     // a ref prevents firing duplicate requests for the same cursor.
     const loadingRef = useRef(false);
@@ -43,14 +76,13 @@ export function NotificationBell() {
     // The shared prop refreshes on navigation and polling; re-seed the list,
     // cursor, and count from the freshest first page when it changes.
     useEffect(() => {
-        setItems(notifications.items);
-        setCursor(notifications.nextCursor);
-        setUnread(notifications.unreadCount);
-    }, [
-        notifications.items,
-        notifications.nextCursor,
-        notifications.unreadCount,
-    ]);
+        const locallySyncedNotifications =
+            applyLocalNotificationState(notifications);
+
+        setItems(locallySyncedNotifications.items);
+        setCursor(locallySyncedNotifications.nextCursor);
+        setUnread(locallySyncedNotifications.unreadCount);
+    }, [notifications]);
 
     function loadMore() {
         if (cursor === null || loadingRef.current) {
@@ -60,14 +92,18 @@ export function NotificationBell() {
         loadingRef.current = true;
         void get(notificationsIndex({ query: { cursor } }).url, {
             onSuccess: (data) => {
+                const locallySyncedData = applyLocalNotificationState(data);
+
                 setItems((prev) => {
                     const seen = new Set(prev.map((n) => n.id));
                     return [
                         ...prev,
-                        ...data.items.filter((n) => !seen.has(n.id)),
+                        ...locallySyncedData.items.filter(
+                            (n) => !seen.has(n.id),
+                        ),
                     ];
                 });
-                setCursor(data.nextCursor);
+                setCursor(locallySyncedData.nextCursor);
             },
             onFinish: () => {
                 loadingRef.current = false;
@@ -87,27 +123,48 @@ export function NotificationBell() {
 
     function markOneRead(id: string) {
         const wasUnread = items.some((n) => n.id === id && !n.read);
+        readNotificationIds.add(id);
+
         if (wasUnread) {
             setUnread((count) => Math.max(0, count - 1));
         }
         setItems((prev) =>
             prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
         );
-        router.post(
-            markRead(id).url,
-            {},
-            { preserveScroll: true, preserveState: true },
-        );
+        void post(markRead(id).url);
     }
 
     function markEverythingRead() {
+        items.forEach((notification) => {
+            readNotificationIds.add(notification.id);
+        });
+
         setItems((prev) => prev.map((n) => ({ ...n, read: true })));
         setUnread(0);
-        router.post(
-            markAllRead().url,
-            {},
-            { preserveScroll: true, preserveState: true },
-        );
+        void post(markAllRead().url);
+    }
+
+    function deleteOne(notification: NotificationItem) {
+        deletedNotificationIds.add(notification.id);
+
+        if (!notification.read) {
+            setUnread((count) => Math.max(0, count - 1));
+        }
+
+        setItems((prev) => prev.filter((n) => n.id !== notification.id));
+
+        void destroy(deleteNotification(notification.id).url);
+    }
+
+    function deleteEverything() {
+        items.forEach((notification) => {
+            deletedNotificationIds.add(notification.id);
+        });
+
+        setItems([]);
+        setUnread(0);
+
+        void destroy(deleteAllNotifications().url);
     }
 
     function handleAction(
@@ -153,15 +210,27 @@ export function NotificationBell() {
                     <span className="text-[13px] font-semibold">
                         Notifications
                     </span>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[12px]"
-                        disabled={unread === 0}
-                        onClick={markEverythingRead}
-                    >
-                        Mark all read
-                    </Button>
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[12px]"
+                            disabled={unread === 0}
+                            onClick={markEverythingRead}
+                        >
+                            Mark all read
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="text-muted-foreground hover:text-destructive"
+                            disabled={items.length === 0}
+                            aria-label="Delete all notifications"
+                            onClick={deleteEverything}
+                        >
+                            <Trash2 className="size-3.5" />
+                        </Button>
+                    </div>
                 </div>
 
                 <div
@@ -184,6 +253,7 @@ export function NotificationBell() {
                                     key={notification.id}
                                     notification={notification}
                                     onRead={markOneRead}
+                                    onDelete={deleteOne}
                                     onAction={handleAction}
                                 />
                             ))}
@@ -203,10 +273,12 @@ export function NotificationBell() {
 function NotificationRow({
     notification,
     onRead,
+    onDelete,
     onAction,
 }: {
     notification: NotificationItem;
     onRead: (id: string) => void;
+    onDelete: (notification: NotificationItem) => void;
     onAction: (
         notification: NotificationItem,
         action: NotificationAction,
@@ -214,8 +286,9 @@ function NotificationRow({
 }) {
     const hasActions =
         notification.actions !== undefined && notification.actions.length > 0;
-    const body = (
-        <div className="flex gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-muted/50">
+
+    const content = (
+        <div className="flex min-w-0 flex-1 gap-2.5 text-left">
             <span
                 aria-hidden
                 className={cn(
@@ -223,7 +296,7 @@ function NotificationRow({
                     notification.read ? 'bg-transparent' : 'bg-primary',
                 )}
             />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 py-2.5">
                 <p className="truncate text-[13px] font-medium text-foreground">
                     {notification.title}
                 </p>
@@ -257,15 +330,35 @@ function NotificationRow({
         </div>
     );
 
+    const deleteButton = (
+        <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="mt-2.5 mr-2 shrink-0 text-muted-foreground hover:text-destructive"
+            aria-label="Delete notification"
+            onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDelete(notification);
+            }}
+        >
+            <Trash2 className="size-3.5" />
+        </Button>
+    );
+
     if (notification.href && !hasActions) {
         return (
-            <Link
-                href={notification.href}
-                className="block border-b border-border last:border-b-0"
-                onClick={() => onRead(notification.id)}
-            >
-                {body}
-            </Link>
+            <div className="flex border-b border-border transition-colors last:border-b-0 hover:bg-muted/50">
+                <Link
+                    href={notification.href}
+                    className="min-w-0 flex-1 pl-3"
+                    onClick={() => onRead(notification.id)}
+                >
+                    {content}
+                </Link>
+                {deleteButton}
+            </div>
         );
     }
 
@@ -273,7 +366,7 @@ function NotificationRow({
         <div
             role="button"
             tabIndex={0}
-            className="border-b border-border last:border-b-0"
+            className="flex border-b border-border transition-colors last:border-b-0 hover:bg-muted/50"
             onClick={() => onRead(notification.id)}
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -284,7 +377,8 @@ function NotificationRow({
                 }
             }}
         >
-            {body}
+            <div className="min-w-0 flex-1 pl-3">{content}</div>
+            {deleteButton}
         </div>
     );
 }

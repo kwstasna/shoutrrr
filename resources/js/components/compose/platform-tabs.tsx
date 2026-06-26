@@ -1,4 +1,12 @@
+import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+
 import { PlatformGlyph } from '@/components/common/platform-glyph';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { BASE_TAB, type Account } from '@/types/compose';
 
@@ -9,6 +17,7 @@ const PLATFORM_BRAND: Record<string, { tile: string; glyph: string }> = {
 };
 
 const PLATFORM_FALLBACK = { tile: 'bg-muted', glyph: 'text-muted-foreground' };
+const VISIBLE_ACCOUNT_TABS = 4;
 
 type PlatformTabsProps = {
     /** One tab per destination account. Empty → a single generic "Post" tab. */
@@ -24,8 +33,39 @@ type PlatformTabsProps = {
     hasOverride: (accountId: string) => boolean;
 };
 
+export function visiblePlatformTabAccounts(
+    accounts: Account[],
+    activeTab: string,
+    visibleLimit = VISIBLE_ACCOUNT_TABS,
+): { visibleAccounts: Account[]; overflowAccounts: Account[] } {
+    if (accounts.length <= visibleLimit) {
+        return { visibleAccounts: accounts, overflowAccounts: [] };
+    }
+
+    const visibleAccounts = accounts.slice(0, visibleLimit);
+
+    if (!visibleAccounts.some((account) => account.id === activeTab)) {
+        const activeAccount = accounts.find(
+            (account) => account.id === activeTab,
+        );
+
+        if (activeAccount) {
+            visibleAccounts[visibleAccounts.length - 1] = activeAccount;
+        }
+    }
+
+    const visibleIds = new Set(visibleAccounts.map((account) => account.id));
+
+    return {
+        visibleAccounts,
+        overflowAccounts: accounts.filter(
+            (account) => !visibleIds.has(account.id),
+        ),
+    };
+}
+
 const TAB_CLASS = cn(
-    'group/tab relative flex shrink-0 items-center gap-2 rounded-t-md px-3 pt-2 pb-2.5 text-[12.5px] font-medium tracking-[-0.005em] transition-colors',
+    'group/tab relative flex min-w-0 items-center gap-2 rounded-t-md px-3 pt-2 pb-2.5 text-[12.5px] font-medium tracking-[-0.005em] transition-colors',
     'text-muted-foreground hover:bg-muted hover:text-foreground',
     'data-[active=true]:text-foreground',
     'after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-t-sm after:bg-foreground after:opacity-0 data-[active=true]:after:opacity-100',
@@ -40,6 +80,8 @@ export default function PlatformTabs({
     stateFor,
     hasOverride,
 }: PlatformTabsProps) {
+    const [overflowOpen, setOverflowOpen] = useState(false);
+
     // No accounts → one generic, platform-less tab that edits the base text.
     if (accounts.length === 0) {
         return (
@@ -66,58 +108,127 @@ export default function PlatformTabs({
         );
     }
 
+    const { visibleAccounts, overflowAccounts } = visiblePlatformTabAccounts(
+        accounts,
+        activeTab,
+    );
+
     return (
         <div
-            className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden"
+            className="flex min-w-0 flex-1 items-end gap-0.5 overflow-hidden"
             role="tablist"
             aria-label="Accounts"
         >
-            {accounts.map((account) => {
-                const isActive = account.id === activeTab;
-                const severity = stateFor(account.id);
-                const overridden = hasOverride(account.id);
-                const brand =
-                    PLATFORM_BRAND[account.platform] ?? PLATFORM_FALLBACK;
-
-                return (
-                    <button
-                        key={account.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={isActive}
-                        data-active={isActive}
-                        data-state={severity}
-                        onClick={() => onChange(account.id)}
-                        title={account.display_name ?? account.handle}
-                        className={TAB_CLASS}
-                    >
-                        <span
-                            className={cn(
-                                'grid size-[18px] place-items-center rounded-[5px]',
-                                brand.tile,
-                                brand.glyph,
-                            )}
+            {visibleAccounts.map((account) => (
+                <PlatformTabButton
+                    key={account.id}
+                    account={account}
+                    activeTab={activeTab}
+                    onChange={onChange}
+                    chipFor={chipFor}
+                    stateFor={stateFor}
+                    hasOverride={hasOverride}
+                />
+            ))}
+            {overflowAccounts.length > 0 && (
+                <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
+                    <PopoverTrigger asChild>
+                        <button
+                            type="button"
+                            className={cn(TAB_CLASS, 'shrink-0 gap-1.5')}
+                            aria-label={`${overflowAccounts.length} more accounts`}
                         >
-                            <PlatformGlyph
-                                platform={account.platform}
-                                size={11}
-                                className={brand.glyph}
+                            <span>+{overflowAccounts.length} more</span>
+                            <ChevronDown className="size-3 opacity-70" />
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                        align="start"
+                        className="w-[240px] gap-1 rounded-2xl p-1.5"
+                    >
+                        {overflowAccounts.map((account) => (
+                            <PlatformTabButton
+                                key={account.id}
+                                account={account}
+                                activeTab={activeTab}
+                                onChange={(tab) => {
+                                    onChange(tab);
+                                    setOverflowOpen(false);
+                                }}
+                                chipFor={chipFor}
+                                stateFor={stateFor}
+                                hasOverride={hasOverride}
+                                inMenu
                             />
-                        </span>
-                        <span>{account.handle}</span>
-                        {overridden && (
-                            <span
-                                className="size-1.5 rounded-full bg-primary"
-                                aria-label="override active"
-                                title="Override active on this account"
-                            />
-                        )}
-                        <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                            {chipFor(account.id)}
-                        </span>
-                    </button>
-                );
-            })}
+                        ))}
+                    </PopoverContent>
+                </Popover>
+            )}
         </div>
+    );
+}
+
+function PlatformTabButton({
+    account,
+    activeTab,
+    onChange,
+    chipFor,
+    stateFor,
+    hasOverride,
+    inMenu = false,
+}: {
+    account: Account;
+    activeTab: string;
+    onChange: (tab: string) => void;
+    chipFor: (accountId: string) => string;
+    stateFor: (accountId: string) => 'ok' | 'warn' | 'over';
+    hasOverride: (accountId: string) => boolean;
+    inMenu?: boolean;
+}) {
+    const isActive = account.id === activeTab;
+    const severity = stateFor(account.id);
+    const overridden = hasOverride(account.id);
+    const brand = PLATFORM_BRAND[account.platform] ?? PLATFORM_FALLBACK;
+
+    return (
+        <button
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            data-active={isActive}
+            data-state={severity}
+            onClick={() => onChange(account.id)}
+            title={account.display_name ?? account.handle}
+            className={cn(
+                TAB_CLASS,
+                inMenu &&
+                    'h-9 w-full rounded-xl px-2 pt-1.5 pb-1.5 after:hidden',
+            )}
+        >
+            <span
+                className={cn(
+                    'grid size-[18px] shrink-0 place-items-center rounded-[5px]',
+                    brand.tile,
+                    brand.glyph,
+                )}
+            >
+                <PlatformGlyph
+                    platform={account.platform}
+                    size={11}
+                    className={brand.glyph}
+                />
+            </span>
+            <span className="min-w-0 truncate">{account.handle}</span>
+            {overridden && (
+                <span
+                    className="size-1.5 shrink-0 rounded-full bg-primary"
+                    aria-label="override active"
+                    title="Override active on this account"
+                />
+            )}
+            <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                {chipFor(account.id)}
+            </span>
+        </button>
     );
 }

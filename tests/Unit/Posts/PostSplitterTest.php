@@ -80,10 +80,11 @@ test('x can use a premium account length budget', function () {
         ->and($result->issues)->toBe([]);
 });
 
-test('linkedin thread max flags multi-section drafts', function () {
-    $result = splitter()->split("one\n---\ntwo", Platform::LinkedIn, true);
+test('linkedin ignores manual split markers and publishes one section', function () {
+    $result = splitter()->split("one\n---\ntwo\n---\nthree", Platform::LinkedIn, true);
 
-    expect($result->issues)->toContain('too_many_sections');
+    expect($result->sections)->toBe(["one\ntwo\nthree"])
+        ->and($result->issues)->not->toContain('too_many_sections');
 });
 
 test('bluesky flags a section that fits graphemes but blows the byte budget', function () {

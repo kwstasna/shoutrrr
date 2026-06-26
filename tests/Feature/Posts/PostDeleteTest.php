@@ -99,6 +99,21 @@ it('soft-deletes a published post and dispatches remote delete per target with a
         fn (DeletePostTarget $job): bool => $job->target->is($published));
 });
 
+it('does not show a soft-deleted post', function (): void {
+    Queue::fake();
+    [$user, $workspace] = deleteTestMember();
+    $post = Post::factory()->for($workspace)->create([
+        'author_id' => $user->id, 'status' => PostStatus::Published->value,
+    ]);
+    PostTarget::factory()->for($post)->create([
+        'status' => PostTargetStatus::Published->value, 'remote_id' => 'remote-1',
+    ]);
+
+    $this->actingAs($user)->delete(route('posts.destroy', $post))->assertRedirect();
+
+    $this->actingAs($user)->get(route('posts.show', $post))->assertNotFound();
+});
+
 it('soft-deletes partial and failed posts via the remote-delete path', function (PostStatus $status): void {
     Queue::fake();
     [$user, $workspace] = deleteTestMember();

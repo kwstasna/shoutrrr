@@ -42,3 +42,20 @@ describe('section boundaries match the server splitter fixture', () => {
         ).toEqual(expected);
     });
 });
+
+it('treats manual split markers as section boundaries, not post text', () => {
+    expect(previewSections('first post\n---\nsecond post', 'x', 280)).toEqual([
+        'first post',
+        'second post',
+    ]);
+});
+
+it('auto-splits each manually split segment independently', () => {
+    const long = 'a'.repeat(200);
+
+    expect(previewSections(`${long}\n${long}\n---\nthird`, 'x', 280)).toEqual([
+        long,
+        long,
+        'third',
+    ]);
+});

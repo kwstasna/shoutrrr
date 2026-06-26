@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\PostStatus;
 use App\Http\Controllers\AccountSets\AccountSetController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\Posts\CalendarController;
@@ -29,6 +30,7 @@ use Illuminate\Support\Facades\Route;
 // each lookup to the authed user's current workspace (a foreign id 404s).
 Route::bind('post', fn (string $value): Post => Post::query()
     ->where('workspace_id', request()->user()?->current_workspace_id)
+    ->where('status', '!=', PostStatus::Deleted->value)
     ->whereKey($value)
     ->firstOrFail());
 

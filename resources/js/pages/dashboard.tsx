@@ -90,7 +90,7 @@ export default function Dashboard({ posts, onboarding, savedMentions }: Props) {
     return (
         <>
             <Head title="Dashboard" />
-            <div className="relative isolate mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6">
+            <div className="relative isolate mx-auto w-full max-w-7xl px-4 pt-6 pb-16 sm:px-6">
                 <DashboardAura />
                 {onboarding && <WelcomeModal welcomed={onboarding.welcomed} />}
                 <h1 className="text-[26px] leading-tight font-semibold tracking-tight">

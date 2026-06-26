@@ -21,6 +21,7 @@ import {
     replaceMentionTokens,
     syncMentionsFromText,
 } from '@/lib/compose/mentions';
+import { buildPlatformPreview } from '@/lib/compose/platform-preview';
 import {
     defaultSettings,
     normalizeSettings,
@@ -46,6 +47,7 @@ import { ConflictDialog } from './conflict-dialog';
 import DestinationSelector from './destination-selector';
 import EditorBody from './editor-body';
 import { ImageEditor } from './image-editor';
+import { PlatformPreviewPanel } from './platform-preview-panel';
 import PlatformTabs from './platform-tabs';
 import SaveIndicator from './save-indicator';
 import { ScheduleTray } from './schedule-tray';
@@ -107,6 +109,10 @@ function accountIdsFor(
 function measure(text: string, platform: PlatformName): number {
     // oxlint-disable-next-line no-misused-spread -- intentional code-point count
     return platform === 'x' ? text.length : [...text].length;
+}
+
+function hasManualSplit(text: string): boolean {
+    return /^\s*---\s*$/m.test(text);
 }
 
 export default function Composer({
@@ -530,11 +536,23 @@ export default function Composer({
                 accountId: activeAccount.id,
                 text,
             });
+            if (hasManualSplit(text)) {
+                dispatch({
+                    type: 'disableAutoSplit',
+                    accountIds: accounts.map((account) => account.id),
+                });
+            }
             syncMentions(state.baseText, overrideByAccount);
 
             return;
         }
         dispatch({ type: 'updateBaseText', text });
+        if (hasManualSplit(text)) {
+            dispatch({
+                type: 'disableAutoSplit',
+                accountIds: accounts.map((account) => account.id),
+            });
+        }
         syncMentions(text);
     }
 
@@ -548,251 +566,287 @@ export default function Composer({
     const mentionPlatforms = Array.from(
         new Set(tabAccounts.map((account) => account.platform)),
     );
+    const previewAccount = activeAccount ?? null;
+    const platformPreview = previewAccount
+        ? buildPlatformPreview({
+              account: previewAccount,
+              text:
+                  state.overrideByAccount[previewAccount.id] ?? state.baseText,
+              mentions: state.mentions,
+              media: state.media,
+              excludedMediaIds: new Set(
+                  state.media
+                      .filter((media) =>
+                          state.mediaSubsetExcludes.has(
+                              `${media.id}:${previewAccount.id}`,
+                          ),
+                      )
+                      .map((media) => media.id),
+              ),
+              limit: limitForAccount(previewAccount),
+              autoSplit: state.autoSplitByAccount[previewAccount.id] ?? true,
+          })
+        : null;
 
     return (
-        <div className="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-[box-shadow,border-color] duration-300 focus-within:border-primary/25 focus-within:shadow-[0_0_16px_-6px_color-mix(in_oklch,var(--primary)_28%,transparent)]">
-            {/* Tab-strip row */}
-            <div className="flex items-center border-b border-border px-2 pt-2">
-                <PlatformTabs
-                    accounts={tabAccounts}
-                    activeTab={activeAccount?.id ?? state.activeTab}
-                    onChange={(tab) => dispatch({ type: 'setActiveTab', tab })}
-                    chipFor={chipFor}
-                    stateFor={severityFor}
-                    hasOverride={(accountId) =>
-                        state.overrideByAccount[accountId] !== undefined
-                    }
-                />
-                <div className="ml-auto flex items-center gap-2 pr-1">
-                    <DestinationSelector
-                        accounts={accounts}
-                        sets={sets}
-                        destination={state.destination}
-                        disabled={readOnly}
-                        onChange={(destination) =>
-                            dispatch({ type: 'setDestination', destination })
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+            <div className="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-[box-shadow,border-color] duration-300 focus-within:border-primary/25 focus-within:shadow-[0_0_16px_-6px_color-mix(in_oklch,var(--primary)_28%,transparent)]">
+                {/* Tab-strip row */}
+                <div className="flex items-center border-b border-border px-2 pt-2">
+                    <PlatformTabs
+                        accounts={tabAccounts}
+                        activeTab={activeAccount?.id ?? state.activeTab}
+                        onChange={(tab) =>
+                            dispatch({ type: 'setActiveTab', tab })
+                        }
+                        chipFor={chipFor}
+                        stateFor={severityFor}
+                        hasOverride={(accountId) =>
+                            state.overrideByAccount[accountId] !== undefined
                         }
                     />
-                    {!readOnly && (
-                        <SaveIndicator
-                            state={state.saveState}
-                            lastSavedAt={
-                                state.baselineUpdatedAt
-                                    ? Date.parse(state.baselineUpdatedAt)
-                                    : null
+                    <div className="ml-auto flex items-center gap-2 pr-1">
+                        <DestinationSelector
+                            accounts={accounts}
+                            sets={sets}
+                            destination={state.destination}
+                            disabled={readOnly}
+                            onChange={(destination) =>
+                                dispatch({
+                                    type: 'setDestination',
+                                    destination,
+                                })
                             }
                         />
-                    )}
+                        {!readOnly && (
+                            <SaveIndicator
+                                state={state.saveState}
+                                lastSavedAt={
+                                    state.baselineUpdatedAt
+                                        ? Date.parse(state.baselineUpdatedAt)
+                                        : null
+                                }
+                            />
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            {/* Override banner (inside EditorBody) + editor */}
-            <EditorBody
-                value={activeText}
-                onChange={handleText}
-                onBlur={flush}
-                editable={!readOnly}
-                autoFocus={autoFocusEditor}
-                onPasteFiles={readOnly ? undefined : handleAddedFiles}
-                overrideBanner={overrideActive}
-                activePlatformLabel={activeAccount?.platform ?? null}
-                onResetOverride={() =>
-                    activeAccount &&
-                    dispatch({
-                        type: 'discardOverride',
-                        accountId: activeAccount.id,
-                    })
-                }
-                mentions={state.mentions}
-                mentionPlatforms={mentionPlatforms}
-                savedMentions={savedMentions}
-                onMentionNameChange={renameMention}
-                onApplySavedMention={applySavedMention}
-                onSaveMention={saveMention}
-                saveMentionProcessing={saveMentionHttp.processing}
-                onMentionsChange={(mentions) =>
-                    dispatch({ type: 'setMentions', mentions })
-                }
-                markerState={
-                    activeAccount
-                        ? {
-                              platform: activeAccount.platform,
-                              autoSplit:
-                                  state.autoSplitByAccount[activeAccount.id] ??
-                                  true,
-                              limit: limitForAccount(activeAccount),
-                              threadMax:
-                                  limits.find(
-                                      (l) =>
-                                          l.platform === activeAccount.platform,
-                                  )?.threadMax ?? null,
-                          }
-                        : undefined
-                }
-            />
+                {/* Override banner (inside EditorBody) + editor */}
+                <EditorBody
+                    value={activeText}
+                    onChange={handleText}
+                    onBlur={flush}
+                    editable={!readOnly}
+                    autoFocus={autoFocusEditor}
+                    onPasteFiles={readOnly ? undefined : handleAddedFiles}
+                    overrideBanner={overrideActive}
+                    activePlatformLabel={activeAccount?.platform ?? null}
+                    onResetOverride={() =>
+                        activeAccount &&
+                        dispatch({
+                            type: 'discardOverride',
+                            accountId: activeAccount.id,
+                        })
+                    }
+                    mentions={state.mentions}
+                    mentionPlatforms={mentionPlatforms}
+                    savedMentions={savedMentions}
+                    onMentionNameChange={renameMention}
+                    onApplySavedMention={applySavedMention}
+                    onSaveMention={saveMention}
+                    saveMentionProcessing={saveMentionHttp.processing}
+                    onMentionsChange={(mentions) =>
+                        dispatch({ type: 'setMentions', mentions })
+                    }
+                    markerState={
+                        activeAccount
+                            ? {
+                                  platform: activeAccount.platform,
+                                  autoSplit:
+                                      state.autoSplitByAccount[
+                                          activeAccount.id
+                                      ] ?? true,
+                                  limit: limitForAccount(activeAccount),
+                                  threadMax:
+                                      limits.find(
+                                          (l) =>
+                                              l.platform ===
+                                              activeAccount.platform,
+                                      )?.threadMax ?? null,
+                              }
+                            : undefined
+                    }
+                />
 
-            {/* Counter row — or the connect prompt when there are no accounts. */}
-            {activeAccount ? (
-                <CharCounter
-                    count={measure(
-                        replaceMentionTokens(
-                            activeText,
-                            state.mentions,
+                {/* Counter row — or the connect prompt when there are no accounts. */}
+                {activeAccount ? (
+                    <CharCounter
+                        count={measure(
+                            replaceMentionTokens(
+                                activeText,
+                                state.mentions,
+                                activeAccount.platform,
+                            ),
                             activeAccount.platform,
-                        ),
-                        activeAccount.platform,
-                    )}
-                    limit={limitForAccount(activeAccount)}
-                    sectionTotal={activeSectionTotal}
-                    state={severityFor(activeAccount.id)}
-                />
-            ) : showConnectAccountPrompt ? (
-                <div className="px-4 pb-3.5 sm:px-[26px]">
-                    <Link
-                        href={accountsRoute().url}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-[12px] tracking-[-0.005em] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
-                    >
-                        <Plug className="size-3.5" aria-hidden />
-                        Connect an account to publish
-                    </Link>
-                </div>
-            ) : null}
+                        )}
+                        limit={limitForAccount(activeAccount)}
+                        sectionTotal={activeSectionTotal}
+                        state={severityFor(activeAccount.id)}
+                    />
+                ) : showConnectAccountPrompt ? (
+                    <div className="px-4 pb-3.5 sm:px-[26px]">
+                        <Link
+                            href={accountsRoute().url}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-[12px] tracking-[-0.005em] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                        >
+                            <Plug className="size-3.5" aria-hidden />
+                            Connect an account to publish
+                        </Link>
+                    </div>
+                ) : null}
 
-            {/* Toolbar — editing controls when editable; just the attached
+                {/* Toolbar — editing controls when editable; just the attached
                 media when read-only (skipped entirely if there's none). */}
-            {(!readOnly || state.media.length > 0) && (
-                <ComposerToolbar
-                    readOnly={readOnly}
-                    activePlatform={activeAccount?.platform}
-                    autoSplit={
-                        activeAccount
-                            ? (state.autoSplitByAccount[activeAccount.id] ??
-                              true)
-                            : false
-                    }
-                    overrideActive={overrideActive}
-                    showSplitControls={activeAccount !== null}
-                    media={state.media}
-                    onRemove={(id) =>
-                        dispatch({ type: 'removeMedia', mediaId: id })
-                    }
-                    onReorder={(ids) => dispatch({ type: 'reorderMedia', ids })}
-                    onToggleAutoSplit={() =>
-                        activeAccount &&
-                        dispatch({
-                            type: 'toggleAutoSplit',
-                            accountId: activeAccount.id,
-                        })
-                    }
-                    onToggleOverride={() => {
-                        if (!activeAccount) {
-                            return;
+                {(!readOnly || state.media.length > 0) && (
+                    <ComposerToolbar
+                        readOnly={readOnly}
+                        activePlatform={activeAccount?.platform}
+                        autoSplit={
+                            activeAccount
+                                ? (state.autoSplitByAccount[activeAccount.id] ??
+                                  true)
+                                : false
                         }
-                        if (
-                            state.overrideByAccount[activeAccount.id] !==
-                            undefined
-                        ) {
+                        overrideActive={overrideActive}
+                        showSplitControls={activeAccount !== null}
+                        media={state.media}
+                        onRemove={(id) =>
+                            dispatch({ type: 'removeMedia', mediaId: id })
+                        }
+                        onReorder={(ids) =>
+                            dispatch({ type: 'reorderMedia', ids })
+                        }
+                        onToggleAutoSplit={() =>
+                            activeAccount &&
                             dispatch({
-                                type: 'discardOverride',
+                                type: 'toggleAutoSplit',
                                 accountId: activeAccount.id,
-                            });
-                        } else {
-                            dispatch({
-                                type: 'setOverrideText',
-                                accountId: activeAccount.id,
-                                text: state.baseText,
-                            });
+                            })
                         }
-                    }}
-                    isExcluded={(mediaId) =>
-                        activeAccount
-                            ? state.mediaSubsetExcludes.has(
-                                  `${mediaId}:${activeAccount.id}`,
-                              )
-                            : false
-                    }
-                    onToggleExclude={(mediaId) =>
-                        activeAccount &&
-                        dispatch({
-                            type: 'toggleMediaExclude',
-                            mediaId,
-                            accountId: activeAccount.id,
-                        })
-                    }
-                    pending={mediaUploads.pending}
-                    handleFiles={handleAddedFiles}
-                    dismissPending={mediaUploads.dismissPending}
-                    onImageClick={openImage}
-                />
-            )}
-
-            {!readOnly && (
-                <ImageEditor
-                    open={editing !== null}
-                    sourceUrl={editorSourceUrl}
-                    initialSettings={editorSettings}
-                    onApply={applyEditing}
-                    onCancel={cancelEditing}
-                    onDiscard={discardEditing}
-                    variant={editing?.kind === 'batch' ? 'new' : 'existing'}
-                    isSaving={imageEditor.isSaving}
-                    queue={editorQueue}
-                />
-            )}
-
-            {/* Schedule + submit row — hidden once the post is read-only. */}
-            {!readOnly && (
-                <div className="flex flex-col items-stretch gap-3 border-t border-border bg-muted/55 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-x-3 sm:px-[14px]">
-                    <ScheduleTray
-                        tray={state.scheduleTray}
-                        onChange={(tray) =>
-                            dispatch({ type: 'setScheduleTray', tray })
-                        }
-                        tz={schedulingTz}
-                        queueState={queueState}
-                    />
-                    <SubmitBar
-                        tray={state.scheduleTray}
-                        postId={state.postId}
-                        disabled={accounts.length === 0}
-                        queueDisabled={queueState.status !== 'found'}
-                        uploading={mediaUploads.isUploading}
-                        onSaveDraft={flush}
-                        onEnsurePost={ensurePost}
-                        onOptimisticSubmit={publishStatus.applyOptimistic}
-                        onServerPost={publishStatus.applyServerPost}
-                    />
-                </div>
-            )}
-
-            {/* Live publish status — only once a publish/queue/schedule has run */}
-            {publishStatus.snapshot &&
-                publishStatus.snapshot.status !== 'draft' &&
-                publishStatus.snapshot.targets.length > 0 && (
-                    <div className="border-t border-border px-3 py-3 sm:px-[14px]">
-                        <TargetStatusChips
-                            targets={publishStatus.snapshot.targets}
-                            retryingIds={publishStatus.retryingIds}
-                            onRetry={(targetId) =>
-                                void publishStatus.retry(targetId)
+                        onToggleOverride={() => {
+                            if (!activeAccount) {
+                                return;
                             }
+                            if (
+                                state.overrideByAccount[activeAccount.id] !==
+                                undefined
+                            ) {
+                                dispatch({
+                                    type: 'discardOverride',
+                                    accountId: activeAccount.id,
+                                });
+                            } else {
+                                dispatch({
+                                    type: 'setOverrideText',
+                                    accountId: activeAccount.id,
+                                    text: state.baseText,
+                                });
+                            }
+                        }}
+                        isExcluded={(mediaId) =>
+                            activeAccount
+                                ? state.mediaSubsetExcludes.has(
+                                      `${mediaId}:${activeAccount.id}`,
+                                  )
+                                : false
+                        }
+                        onToggleExclude={(mediaId) =>
+                            activeAccount &&
+                            dispatch({
+                                type: 'toggleMediaExclude',
+                                mediaId,
+                                accountId: activeAccount.id,
+                            })
+                        }
+                        pending={mediaUploads.pending}
+                        handleFiles={handleAddedFiles}
+                        dismissPending={mediaUploads.dismissPending}
+                        onImageClick={openImage}
+                    />
+                )}
+
+                {!readOnly && (
+                    <ImageEditor
+                        open={editing !== null}
+                        sourceUrl={editorSourceUrl}
+                        initialSettings={editorSettings}
+                        onApply={applyEditing}
+                        onCancel={cancelEditing}
+                        onDiscard={discardEditing}
+                        variant={editing?.kind === 'batch' ? 'new' : 'existing'}
+                        isSaving={imageEditor.isSaving}
+                        queue={editorQueue}
+                    />
+                )}
+
+                {/* Schedule + submit row — hidden once the post is read-only. */}
+                {!readOnly && (
+                    <div className="flex flex-col items-stretch gap-3 border-t border-border bg-muted/55 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-x-3 sm:px-[14px]">
+                        <ScheduleTray
+                            tray={state.scheduleTray}
+                            onChange={(tray) =>
+                                dispatch({ type: 'setScheduleTray', tray })
+                            }
+                            tz={schedulingTz}
+                            queueState={queueState}
+                        />
+                        <SubmitBar
+                            tray={state.scheduleTray}
+                            postId={state.postId}
+                            disabled={accounts.length === 0}
+                            queueDisabled={queueState.status !== 'found'}
+                            uploading={mediaUploads.isUploading}
+                            onSaveDraft={flush}
+                            onEnsurePost={ensurePost}
+                            onOptimisticSubmit={publishStatus.applyOptimistic}
+                            onServerPost={publishStatus.applyServerPost}
                         />
                     </div>
                 )}
 
-            {state.conflict !== null && (
-                <ConflictDialog
-                    open
-                    myBaseText={state.baseText}
-                    serverPost={state.conflict}
-                    onKeepMine={() =>
-                        dispatch({ type: 'resolveConflictKeepMine' })
-                    }
-                    onUseServer={() =>
-                        dispatch({ type: 'resolveConflictUseServer' })
-                    }
-                />
-            )}
+                {/* Live publish status — only once a publish/queue/schedule has run */}
+                {publishStatus.snapshot &&
+                    publishStatus.snapshot.status !== 'draft' &&
+                    publishStatus.snapshot.targets.length > 0 && (
+                        <div className="border-t border-border px-3 py-3 sm:px-[14px]">
+                            <TargetStatusChips
+                                targets={publishStatus.snapshot.targets}
+                                retryingIds={publishStatus.retryingIds}
+                                onRetry={(targetId) =>
+                                    void publishStatus.retry(targetId)
+                                }
+                            />
+                        </div>
+                    )}
+
+                {state.conflict !== null && (
+                    <ConflictDialog
+                        open
+                        myBaseText={state.baseText}
+                        serverPost={state.conflict}
+                        onKeepMine={() =>
+                            dispatch({ type: 'resolveConflictKeepMine' })
+                        }
+                        onUseServer={() =>
+                            dispatch({ type: 'resolveConflictUseServer' })
+                        }
+                    />
+                )}
+            </div>
+
+            <div className="xl:sticky xl:top-20">
+                <PlatformPreviewPanel preview={platformPreview} />
+            </div>
         </div>
     );
 }

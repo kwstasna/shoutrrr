@@ -47,6 +47,7 @@ export type ComposerAction =
     | { type: 'setActiveTab'; tab: string }
     | { type: 'setDestination'; destination: Destination }
     | { type: 'toggleAutoSplit'; accountId: string }
+    | { type: 'disableAutoSplit'; accountIds: string[] }
     | { type: 'setOverrideText'; accountId: string; text: string }
     | { type: 'discardOverride'; accountId: string }
     | { type: 'toggleMediaExclude'; mediaId: string; accountId: string }
@@ -259,6 +260,21 @@ export function composerReducer(
                     ...state.autoSplitByAccount,
                     [action.accountId]: !(
                         state.autoSplitByAccount[action.accountId] ?? true
+                    ),
+                },
+                saveState: 'dirty',
+            };
+
+        case 'disableAutoSplit':
+            return {
+                ...state,
+                autoSplitByAccount: {
+                    ...state.autoSplitByAccount,
+                    ...Object.fromEntries(
+                        action.accountIds.map((accountId) => [
+                            accountId,
+                            false,
+                        ]),
                     ),
                 },
                 saveState: 'dirty',
