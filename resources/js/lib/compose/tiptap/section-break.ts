@@ -1,4 +1,36 @@
 import { mergeAttributes, Node } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
+
+import { measure } from '@/lib/compose/section-split';
+import { sectionMarkersKey } from '@/lib/compose/tiptap/section-markers';
+import type { PlatformName } from '@/types/compose';
+
+/**
+ * Measure the section that begins right after the manual break at `breakPos` —
+ * the "next post". Collects the paragraph text from the block following the
+ * break up to (but not including) the next break or the end of the document,
+ * joined by newlines to mirror the canonical base text the splitter consumes.
+ */
+export function measureSectionAfterBreak(
+    doc: PMNode,
+    breakPos: number,
+    platform: PlatformName,
+): number {
+    const breakIndex = doc.resolve(breakPos).index(0);
+    const lines: string[] = [];
+
+    for (let i = breakIndex + 1; i < doc.childCount; i++) {
+        const child = doc.child(i);
+        if (child.type.name === 'sectionBreak') {
+            break;
+        }
+        if (child.type.name === 'paragraph') {
+            lines.push(child.textContent);
+        }
+    }
+
+    return measure(lines.join('\n'), platform);
+}
 
 export function shouldConvertEmptyParagraphToSectionBreak({
     currentBlockType,
@@ -58,20 +90,73 @@ export const SectionBreak = Node.create({
     renderHTML({ HTMLAttributes }) {
         return [
             'div',
-            mergeAttributes(HTMLAttributes, {
-                'data-section-break': '',
-                class: 'section-marker',
-                contenteditable: 'false',
-                'aria-hidden': 'true',
-            }),
-            ['span', { class: 'sm-rule' }],
-            [
-                'span',
-                { class: 'sm-chip' },
-                ['span', { class: 'sm-num' }, 'Next post'],
-            ],
-            ['span', { class: 'sm-rule' }],
+            mergeAttributes(HTMLAttributes, { 'data-section-break': '' }),
         ];
+    },
+
+    /**
+     * Render the on-screen marker as a live chip showing the character count of
+     * the post that begins after this break — the count the auto-split markers
+     * already show, brought to manual breaks instead of a static "Next post"
+     * label. The count tracks every edit by recomputing on each transaction.
+     */
+    addNodeView() {
+        return ({ editor, getPos }) => {
+            const dom = document.createElement('div');
+            dom.setAttribute('data-section-break', '');
+            dom.className = 'section-marker';
+            dom.setAttribute('contenteditable', 'false');
+            dom.setAttribute('aria-hidden', 'true');
+            dom.innerHTML =
+                '<span class="sm-rule"></span>' +
+                '<span class="sm-chip"><span class="sm-count"></span></span>' +
+                '<span class="sm-rule"></span>';
+            const countEl = dom.querySelector<HTMLElement>('.sm-count')!;
+
+            let lastLabel = '';
+            let lastState = '';
+            const render = () => {
+                const pos = typeof getPos === 'function' ? getPos() : null;
+                if (pos === null || pos === undefined) {
+                    return;
+                }
+                const config = sectionMarkersKey.getState(editor.state)?.config;
+                const platform = config?.platform ?? 'bluesky';
+                const limit =
+                    config && config.limit > 0 ? config.limit : Infinity;
+                const count = measureSectionAfterBreak(
+                    editor.state.doc,
+                    pos,
+                    platform,
+                );
+                const state =
+                    count > limit
+                        ? 'over'
+                        : count >= limit * 0.9
+                          ? 'warn'
+                          : 'ok';
+                const label = `${count}/${Number.isFinite(limit) ? limit : '∞'}`;
+                if (label !== lastLabel) {
+                    countEl.textContent = label;
+                    lastLabel = label;
+                }
+                if (state !== lastState) {
+                    dom.dataset.state = state;
+                    lastState = state;
+                }
+            };
+
+            render();
+            const onTransaction = () => render();
+            editor.on('transaction', onTransaction);
+
+            return {
+                dom,
+                update: (node) => node.type.name === 'sectionBreak',
+                ignoreMutation: () => true,
+                destroy: () => editor.off('transaction', onTransaction),
+            };
+        };
     },
 
     addCommands() {
