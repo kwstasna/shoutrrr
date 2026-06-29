@@ -7,6 +7,7 @@ import {
     applyOptimisticSubmit,
     failedTargets,
     isPostTerminal,
+    shouldPollPostStatus,
     OPTIMISTIC_PUBLISH,
     OPTIMISTIC_SCHEDULE,
     targetStatusMeta,
@@ -70,6 +71,21 @@ describe('isPostTerminal', () => {
                 post([target('a', 'published'), target('b', 'failed')]),
             ),
         ).toBe(true);
+    });
+});
+
+describe('shouldPollPostStatus', () => {
+    it('does not poll draft posts whose targets are only editable draft placeholders', () => {
+        const draft = post([target('a', 'pending')]);
+        draft.status = 'draft';
+
+        expect(shouldPollPostStatus(draft)).toBe(false);
+    });
+
+    it('polls posts that are actively publishing', () => {
+        expect(shouldPollPostStatus(post([target('a', 'publishing')]))).toBe(
+            true,
+        );
     });
 });
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\ConnectedAccountStatus;
 use App\Enums\Platform;
 use App\Exceptions\TokenRefreshException;
 use App\Models\ConnectedAccount;
@@ -22,11 +23,12 @@ class RefreshExpiringTokens extends Command
         ConnectedAccount::query()
             ->withoutGlobalScopes()
             ->where('platform', '!=', Platform::Bluesky->value)
+            ->where('status', ConnectedAccountStatus::Active->value)
             ->whereNotNull('token_expires_at')
-            ->where('token_expires_at', '<=', Date::now()->addMinutes(30))
+            ->where('token_expires_at', '<=', Date::now()->addHours(6))
             ->each(function (ConnectedAccount $account) use ($tokens): void {
                 try {
-                    // Force the refresh: these accounts are inside the sweeper window
+                    // Force the refresh: these accounts are inside the health-check window
                     // but typically still outside the just-in-time skew band.
                     $tokens->fresh($account, force: true);
                 } catch (TokenRefreshException $e) {

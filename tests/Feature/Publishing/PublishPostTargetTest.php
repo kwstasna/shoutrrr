@@ -153,6 +153,38 @@ test('terminal failure marks the target failed without retry', function () {
     expect($target->post->refresh()->status)->toBe(PostStatus::Failed);
 });
 
+test('publish fails immediately when the account already needs attention', function () {
+    Bus::fake();
+    $target = publishTarget();
+    $target->account()->firstOrFail()->forceFill([
+        'status' => ConnectedAccountStatus::NeedsAttention->value,
+        'refresh_failed_at' => now(),
+        'refresh_failure_reason' => 'X rejected the refresh token.',
+    ])->save();
+
+    bindConnector(fn () => throw new RuntimeException('connector should not be called'));
+
+    (new PublishPostTarget($target))->handle(
+        app(PublishConnectorRegistry::class),
+        app(TokenManager::class),
+        app(PostStatusRollup::class),
+        app(BackoffSchedule::class),
+    );
+
+    $target->refresh();
+    expect($target->status)->toBe(PostTargetStatus::Failed)
+        ->and($target->error_kind)->toBe(ErrorKind::AuthExpired)
+        ->and($target->error_message)->toBe('X account needs attention. Reconnect it before publishing.')
+        ->and($target->attempts)->toBe(1)
+        ->and($target->next_attempt_at)->toBeNull();
+
+    $attempt = PostTargetAttempt::where('post_target_id', $target->id)->sole();
+    expect($attempt->status)->toBe('failed')
+        ->and($attempt->error_kind)->toBe(ErrorKind::AuthExpired);
+
+    Bus::assertNotDispatched(PublishPostTarget::class);
+});
+
 test('auth expired failure marks the target failed without retrying', function () {
     Bus::fake();
     $target = publishTarget();

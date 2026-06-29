@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -137,5 +140,20 @@ describe('delete empty line after post split', () => {
                 previousBlockType: 'paragraph',
             }),
         ).toBe(false);
+    });
+});
+
+describe('composer editor text rhythm', () => {
+    it('matches preview line spacing without paragraph margins', () => {
+        const source = readFileSync(
+            resolve(
+                process.cwd(),
+                'resources/js/components/compose/editor-body.tsx',
+            ),
+            'utf8',
+        );
+
+        expect(source).toContain('leading-5');
+        expect(source).toContain('[&_.ProseMirror_p]:m-0');
     });
 });

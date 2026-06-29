@@ -31,6 +31,8 @@ class ConnectedAccountFactory extends Factory
             'status' => ConnectedAccountStatus::Active->value,
             'token_expires_at' => null,
             'last_refreshed_at' => null,
+            'refresh_failed_at' => null,
+            'refresh_failure_reason' => null,
         ];
     }
 

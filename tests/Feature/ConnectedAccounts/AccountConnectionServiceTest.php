@@ -54,6 +54,8 @@ test('store upserts an existing remote account, preserving id and clearing needs
         'platform' => Platform::X->value,
         'remote_account_id' => 'x-1',
         'handle' => '@old',
+        'refresh_failed_at' => now(),
+        'refresh_failure_reason' => 'HTTP 400: invalid_grant',
     ]);
 
     $data = new ConnectedAccountData(
@@ -71,5 +73,7 @@ test('store upserts an existing remote account, preserving id and clearing needs
     expect($account->id)->toBe($existing->id)
         ->and($account->handle)->toBe('@new')
         ->and($account->status)->toBe(ConnectedAccountStatus::Active)
+        ->and($account->refresh_failed_at)->toBeNull()
+        ->and($account->refresh_failure_reason)->toBeNull()
         ->and(ConnectedAccount::withoutGlobalScopes()->count())->toBe(1);
 });

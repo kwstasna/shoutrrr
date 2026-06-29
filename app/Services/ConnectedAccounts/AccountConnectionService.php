@@ -42,6 +42,8 @@ class AccountConnectionService
                     'capabilities' => $data->capabilities,
                     'token_expires_at' => $data->tokenExpiresAt,
                     'last_refreshed_at' => Date::now(),
+                    'refresh_failed_at' => null,
+                    'refresh_failure_reason' => null,
                 ],
             );
 

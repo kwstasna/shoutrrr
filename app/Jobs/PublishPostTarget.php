@@ -94,11 +94,20 @@ class PublishPostTarget implements ShouldQueue
             ]);
         });
 
-        try {
-            $credentials = $tokens->fresh($target->account()->firstOrFail());
-            $result = $registry->for($target->platform)->publish($this->context($target, $credentials));
-        } catch (TokenRefreshException $e) {
-            $result = PublishResult::failure(ErrorKind::AuthExpired, $e->getMessage());
+        $account = $target->account()->firstOrFail();
+
+        if ($account->status === ConnectedAccountStatus::NeedsAttention) {
+            $result = PublishResult::failure(
+                ErrorKind::AuthExpired,
+                "{$account->platform->label()} account needs attention. Reconnect it before publishing.",
+            );
+        } else {
+            try {
+                $credentials = $tokens->fresh($account);
+                $result = $registry->for($target->platform)->publish($this->context($target, $credentials));
+            } catch (TokenRefreshException $e) {
+                $result = PublishResult::failure(ErrorKind::AuthExpired, $e->getMessage());
+            }
         }
 
         if ($result->isSuccessful()) {

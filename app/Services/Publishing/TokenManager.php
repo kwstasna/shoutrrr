@@ -11,6 +11,7 @@ use App\Models\ConnectedAccount;
 use App\Models\ConnectedAccountSecret;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 
 class TokenManager
@@ -40,7 +41,17 @@ class TokenManager
             return ['access_token' => $secret->access_token];
         }
 
-        return $this->refreshOAuth($account, $secret);
+        return Cache::lock("connected-account-token-refresh:{$account->id}", 60)
+            ->block(10, function () use ($account, $force): array {
+                $freshAccount = $account->newQueryWithoutScopes()->findOrFail($account->id);
+                $freshSecret = $freshAccount->secret()->firstOrFail();
+
+                if (! $force && ! $this->needsRefresh($freshAccount)) {
+                    return ['access_token' => $freshSecret->access_token];
+                }
+
+                return $this->refreshOAuth($freshAccount, $freshSecret);
+            });
     }
 
     private function needsRefresh(ConnectedAccount $account): bool
@@ -71,7 +82,11 @@ class TokenManager
             ?? $this->createBlueskySession($pds, (string) $account->remote_account_id, (string) $secret->app_password);
 
         if ($tokens === null) {
-            $account->forceFill(['status' => ConnectedAccountStatus::NeedsAttention->value])->save();
+            $account->forceFill([
+                'status' => ConnectedAccountStatus::NeedsAttention->value,
+                'refresh_failed_at' => Date::now(),
+                'refresh_failure_reason' => 'Bluesky session refresh and app-password login failed.',
+            ])->save();
 
             return ['session' => $session, 'app_password' => $secret->app_password];
         }
@@ -81,6 +96,8 @@ class TokenManager
         $account->forceFill([
             'last_refreshed_at' => Date::now(),
             'status' => ConnectedAccountStatus::Active->value,
+            'refresh_failed_at' => null,
+            'refresh_failure_reason' => null,
         ])->save();
 
         return ['session' => $session, 'app_password' => $secret->app_password];
@@ -180,7 +197,11 @@ class TokenManager
         $response = $request->post((string) $endpoint, $body);
 
         if ($response->failed()) {
-            $account->forceFill(['status' => ConnectedAccountStatus::NeedsAttention->value])->save();
+            $account->forceFill([
+                'status' => ConnectedAccountStatus::NeedsAttention->value,
+                'refresh_failed_at' => Date::now(),
+                'refresh_failure_reason' => $this->refreshFailureReason($response),
+            ])->save();
 
             throw new TokenRefreshException("Token refresh failed for account {$account->id}.");
         }
@@ -198,8 +219,20 @@ class TokenManager
             'token_expires_at' => $expiresIn > 0 ? Date::now()->addSeconds($expiresIn) : null,
             'last_refreshed_at' => Date::now(),
             'status' => ConnectedAccountStatus::Active->value,
+            'refresh_failed_at' => null,
+            'refresh_failure_reason' => null,
         ])->save();
 
         return ['access_token' => $accessToken];
+    }
+
+    private function refreshFailureReason(Response $response): string
+    {
+        $message = (string) ($response->json('error_description')
+            ?? $response->json('error')
+            ?? $response->json('message')
+            ?? 'OAuth token refresh failed.');
+
+        return "HTTP {$response->status()}: {$message}";
     }
 }

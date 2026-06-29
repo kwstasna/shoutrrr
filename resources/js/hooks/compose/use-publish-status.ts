@@ -2,8 +2,8 @@ import { useHttp, usePoll } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
 import {
-    anyTargetActive,
     applyOptimisticSubmit,
+    shouldPollPostStatus,
     type OptimisticSubmit,
 } from '@/lib/compose/publish-status';
 import { retry as retryRoute } from '@/routes/posts/targets';
@@ -40,7 +40,7 @@ export function usePublishStatus({ pagePost }: UsePublishStatus) {
         }
     }, [pagePost]);
 
-    const active = snapshot ? anyTargetActive(snapshot.targets) : false;
+    const active = snapshot ? shouldPollPostStatus(snapshot) : false;
 
     // Poll the page while any target is in motion. We refresh BOTH `post` and the
     // deferred `stats` prop: publishing is async, so the initial `stats` defer

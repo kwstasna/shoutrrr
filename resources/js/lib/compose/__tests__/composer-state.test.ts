@@ -150,6 +150,17 @@ describe('composerReducer', () => {
         expect(state.saveState).toBe('dirty');
     });
 
+    it('does not mark dirty when segments are unchanged', () => {
+        const saved = hydrated();
+        const next = composerReducer(saved, {
+            type: 'updateSegments',
+            segments: ['hello'],
+        });
+
+        expect(next).toBe(saved);
+        expect(next.saveState).toBe('saved');
+    });
+
     it('stores a per-account override and marks dirty', () => {
         const state = composerReducer(hydrated(), {
             type: 'setOverrideSegments',

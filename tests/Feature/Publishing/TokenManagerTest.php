@@ -55,6 +55,44 @@ test('fresh refreshes an expired oauth token and persists it', function () {
         ->and($account->last_refreshed_at)->not->toBeNull();
 });
 
+test('fresh uses a token refreshed by another worker instead of refreshing again', function () {
+    $account = ConnectedAccount::factory()->create([
+        'platform' => Platform::X->value,
+        'token_expires_at' => now()->subMinute(),
+    ]);
+    ConnectedAccountSecret::factory()->create([
+        'connected_account_id' => $account->id,
+        'access_token' => 'old',
+        'refresh_token' => 'refresh-old',
+    ]);
+
+    $staleAccount = $account->fresh();
+
+    $account->forceFill([
+        'token_expires_at' => now()->addHour(),
+        'last_refreshed_at' => now(),
+    ])->save();
+    $account->secret->forceFill([
+        'access_token' => 'fresh-from-worker',
+        'refresh_token' => 'rotated-by-worker',
+    ])->save();
+
+    Http::fake([
+        'https://api.twitter.com/2/oauth2/token' => Http::response([
+            'access_token' => 'unnecessary-refresh',
+            'refresh_token' => 'unnecessary-rotation',
+            'expires_in' => 7200,
+        ]),
+    ]);
+
+    $creds = app(TokenManager::class)->fresh($staleAccount);
+
+    expect($creds['access_token'])->toBe('fresh-from-worker')
+        ->and($account->fresh()->secret->refresh_token)->toBe('rotated-by-worker');
+
+    Http::assertNothingSent();
+});
+
 test('fresh flips status and throws on refresh failure', function () {
     $account = ConnectedAccount::factory()->create([
         'platform' => Platform::X->value,

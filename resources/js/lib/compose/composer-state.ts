@@ -233,11 +233,23 @@ export function composerReducer(
             if (state.saveState === 'conflict') {
                 return state;
             }
+            if (
+                JSON.stringify(state.segments) ===
+                JSON.stringify(action.segments)
+            ) {
+                return state;
+            }
 
             return { ...state, segments: action.segments, saveState: 'dirty' };
 
         case 'setMentions':
             if (state.saveState === 'conflict') {
+                return state;
+            }
+            if (
+                JSON.stringify(state.mentions) ===
+                JSON.stringify(action.mentions)
+            ) {
                 return state;
             }
 

@@ -32,9 +32,19 @@ export function targetStatusMeta(status: TargetStatus): TargetStatusMeta {
     return TARGET_STATUS_META[status] ?? TARGET_STATUS_META.pending;
 }
 
-/** True while any target is still pending/publishing/deleting (drives polling). */
+/** True while any target is still pending/publishing/deleting. */
 export function anyTargetActive(targets: TargetView[]): boolean {
     return targets.some((t) => ACTIVE_TARGET_STATUSES.has(t.status));
+}
+
+/** True when the composer page needs live status refreshes. */
+export function shouldPollPostStatus(post: PostView): boolean {
+    return post.targets.some(
+        (target) =>
+            target.status === 'publishing' ||
+            target.status === 'deleting' ||
+            (post.status === 'publishing' && target.status === 'pending'),
+    );
 }
 
 /** A post is terminal once no target is active (publishing finished, success or fail). */

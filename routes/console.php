@@ -15,7 +15,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(DispatchDuePosts::class)->everyMinute()->withoutOverlapping();
-Schedule::command(RefreshExpiringTokens::class)->hourly()->withoutOverlapping();
+Schedule::command(RefreshExpiringTokens::class)->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command(PruneMcpBindings::class)->hourly();
 Schedule::command(PruneAbandonedUploads::class)->hourly();
 

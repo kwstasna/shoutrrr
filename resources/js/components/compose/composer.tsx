@@ -1,5 +1,5 @@
 import { Link, useHttp } from '@inertiajs/react';
-import { Eye, Plug } from 'lucide-react';
+import { Eye, Pin, Plug } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -83,6 +83,8 @@ const PREVIEW_FALLBACK_ACCOUNT: Account = {
     max_text_length: 0,
     x_premium: false,
 };
+
+const PREVIEW_PINNED_STORAGE_KEY = 'shoutrrr.composer.previewPinned';
 
 type ComposerProps = {
     post: PostView | null;
@@ -229,6 +231,22 @@ export default function Composer({
     // Platform preview is opt-in: collapsed by default, revealed via the toolbar
     // "Preview" toggle so it doesn't crowd the editor.
     const [showPreview, setShowPreview] = useState(false);
+    const [previewPinned, setPreviewPinned] = useState(() => {
+        if (typeof window === 'undefined') {
+            return false;
+        }
+
+        return (
+            window.localStorage.getItem(PREVIEW_PINNED_STORAGE_KEY) === 'true'
+        );
+    });
+    const previewVisible = showPreview || previewPinned;
+    useEffect(() => {
+        window.localStorage.setItem(
+            PREVIEW_PINNED_STORAGE_KEY,
+            String(previewPinned),
+        );
+    }, [previewPinned]);
     // Revoke any outstanding batch object URLs if the composer unmounts mid-batch.
     const editingRef = useRef<Editing | null>(null);
     editingRef.current = editing;
@@ -670,7 +688,7 @@ export default function Composer({
         <div
             className={cn(
                 'grid items-start transition-[grid-template-columns,gap] duration-300 ease-out motion-reduce:transition-none',
-                showPreview
+                previewVisible
                     ? 'gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]'
                     : 'gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(0px,0px)]',
             )}
@@ -696,17 +714,33 @@ export default function Composer({
                         />
                     </div>
                     <div className="ml-auto flex items-center gap-2 pr-1">
-                        <button
-                            type="button"
-                            aria-label="Toggle platform preview"
-                            aria-pressed={showPreview}
-                            data-active={showPreview}
-                            onClick={() => setShowPreview((open) => !open)}
-                            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent bg-transparent px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground data-[active=true]:border-border data-[active=true]:bg-background data-[active=true]:text-foreground"
+                        <div
+                            className="inline-flex h-7 overflow-hidden rounded-md border border-transparent text-[12px] text-muted-foreground data-[active=true]:border-border data-[active=true]:bg-background data-[active=true]:text-foreground"
+                            data-active={previewVisible}
                         >
-                            <Eye className="size-3.5 shrink-0" />
-                            <span>Preview</span>
-                        </button>
+                            <button
+                                type="button"
+                                aria-label="Toggle platform preview"
+                                aria-pressed={previewVisible}
+                                onClick={() => setShowPreview((open) => !open)}
+                                className="inline-flex items-center gap-1.5 px-2 hover:bg-muted hover:text-foreground"
+                            >
+                                <Eye className="size-3.5 shrink-0" />
+                                <span>Preview</span>
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="Pin platform preview"
+                                aria-pressed={previewPinned}
+                                data-active={previewPinned}
+                                onClick={() =>
+                                    setPreviewPinned((pinned) => !pinned)
+                                }
+                                className="inline-flex w-6 items-center justify-center border-l border-border/70 hover:bg-muted hover:text-foreground data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                            >
+                                <Pin className="size-3.5 shrink-0" />
+                            </button>
+                        </div>
                         <DestinationSelector
                             accounts={accounts}
                             sets={sets}
@@ -1022,11 +1056,11 @@ export default function Composer({
             so a hidden preview reclaims its space instead of leaving a gap. The
             card keeps a stable height via xl:min-w while it wipes, and sticky
             lives on the wrapper so it still pins to the editor row. */}
-            <div className="xl:sticky xl:top-20" aria-hidden={!showPreview}>
+            <div className="xl:sticky xl:top-20" aria-hidden={!previewVisible}>
                 <div
                     className={cn(
                         'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none',
-                        showPreview
+                        previewVisible
                             ? 'grid-rows-[1fr] opacity-100'
                             : 'grid-rows-[0fr] opacity-0',
                     )}
