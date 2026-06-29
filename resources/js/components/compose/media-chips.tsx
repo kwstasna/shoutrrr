@@ -34,7 +34,7 @@ function MediaThumb({ media }: { media: MediaView }) {
                     className="size-full object-cover"
                 />
                 {label && (
-                    <span className="absolute right-0.5 bottom-0.5 rounded bg-black/70 px-1 font-mono text-[8px] leading-tight text-white tabular-nums">
+                    <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 font-mono text-[8px] leading-tight text-white tabular-nums">
                         {label}
                     </span>
                 )}
@@ -66,6 +66,8 @@ type Props = {
     readOnly?: boolean;
     /** Click an image to (re)open it in the editor. */
     onImageClick?: (mediaId: string) => void;
+    /** Click a video chip's Edit button to open the video editor. */
+    onVideoClick?: (mediaId: string) => void;
 };
 
 /** A square overlay button that protrudes past the chip's top-right corner. */
@@ -114,6 +116,7 @@ export function MediaChips({
     onDismissPending,
     readOnly = false,
     onImageClick,
+    onVideoClick,
 }: Props) {
     const [dragIdx, setDragIdx] = useState<number | null>(null);
     // True only once a real drag (reorder) has started, so the click that ends a
@@ -158,6 +161,13 @@ export function MediaChips({
         <div className="ml-0.5 flex items-center gap-2">
             {media.map((m, idx) => {
                 const excluded = isExcluded(m.id);
+                // Both kinds open an editor on click. Videos are always
+                // editable (trim works without an encoder); the editor hides the
+                // crop tools when the browser can't re-encode.
+                const canEdit =
+                    m.kind === 'video'
+                        ? Boolean(onVideoClick)
+                        : Boolean(onImageClick);
 
                 return (
                     <Tooltip key={m.id}>
@@ -182,34 +192,32 @@ export function MediaChips({
                                 <button
                                     type="button"
                                     aria-label={
-                                        m.kind === 'video'
-                                            ? `Media ${idx + 1}`
-                                            : `Edit media ${idx + 1}`
-                                    }
-                                    aria-pressed={
-                                        m.kind === 'video'
-                                            ? !excluded
-                                            : undefined
+                                        canEdit
+                                            ? `Edit media ${idx + 1}`
+                                            : `Media ${idx + 1}`
                                     }
                                     onPointerDown={() => {
                                         dragged.current = false;
                                     }}
                                     onClick={() => {
                                         // Skip the click that ends a reorder drag.
-                                        if (dragged.current) {
+                                        if (dragged.current || !canEdit) {
                                             return;
                                         }
-                                        // Anything that isn't a video is an editable
-                                        // image (matches how the thumbnail renders).
+                                        // Click the thumbnail to (re)open its editor —
+                                        // same gesture for images and videos.
                                         if (m.kind === 'video') {
-                                            onToggleExclude(m.id);
+                                            onVideoClick?.(m.id);
                                         } else {
                                             onImageClick?.(m.id);
                                         }
                                     }}
                                     className={cn(
-                                        'block size-7 cursor-pointer overflow-hidden rounded-md border border-border',
+                                        'block size-7 overflow-hidden rounded-md border border-border',
                                         'transition-[opacity,transform]',
+                                        canEdit
+                                            ? 'cursor-pointer'
+                                            : 'cursor-default',
                                         excluded &&
                                             'opacity-40 ring-1 ring-destructive/50',
                                         dragIdx === idx &&
@@ -227,9 +235,10 @@ export function MediaChips({
                                         aria-hidden="true"
                                     />
                                 </CornerButton>
-                                {/* Per-account include/exclude — top-left, so it
-                                    doesn't collide with edit (bottom-right) or remove. */}
-                                {m.kind !== 'video' && activePlatform && (
+                                {/* Per-platform include/exclude — top-left, kept
+                                    visible so the toggle is glanceable rather than
+                                    hidden behind a hover. */}
+                                {activePlatform && (
                                     <button
                                         type="button"
                                         aria-label={
@@ -237,18 +246,22 @@ export function MediaChips({
                                                 ? `Include on ${activePlatform}`
                                                 : `Exclude on ${activePlatform}`
                                         }
-                                        aria-pressed={!excluded}
+                                        aria-pressed={excluded}
+                                        title={
+                                            excluded
+                                                ? `Hidden on ${activePlatform} — click to include`
+                                                : `Shown on ${activePlatform} — click to exclude`
+                                        }
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onToggleExclude(m.id);
                                         }}
                                         className={cn(
                                             'absolute -top-1.5 -left-1.5 z-10 grid size-4 place-items-center rounded-full',
-                                            'border border-background bg-foreground text-background shadow-sm',
-                                            'transition-opacity group-focus-within/chip:opacity-100 group-hover/chip:opacity-100',
+                                            'border shadow-sm transition-colors',
                                             excluded
-                                                ? 'opacity-100'
-                                                : 'opacity-0 max-md:opacity-100',
+                                                ? 'border-background bg-foreground text-background'
+                                                : 'border-border bg-background text-muted-foreground hover:text-foreground',
                                         )}
                                     >
                                         {excluded ? (
@@ -267,13 +280,7 @@ export function MediaChips({
                             </div>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="text-[11px]">
-                            {m.kind === 'video'
-                                ? activePlatform
-                                    ? excluded
-                                        ? `Click to include on ${activePlatform}`
-                                        : `Click to exclude on ${activePlatform}`
-                                    : 'Attached media'
-                                : 'Click to edit'}
+                            {canEdit ? 'Click to edit' : 'Attached media'}
                         </TooltipContent>
                     </Tooltip>
                 );

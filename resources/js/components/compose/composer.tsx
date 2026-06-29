@@ -9,6 +9,7 @@ import { useImageEditor } from '@/hooks/compose/use-image-editor';
 import { useMediaUploads } from '@/hooks/compose/use-media-uploads';
 import { useNextSlot } from '@/hooks/compose/use-next-slot';
 import { usePublishStatus } from '@/hooks/compose/use-publish-status';
+import { useVideoEditor } from '@/hooks/compose/use-video-editor';
 import { useSchedulingTimezone } from '@/hooks/posts/use-scheduling-timezone';
 import {
     composerReducer,
@@ -22,6 +23,7 @@ import {
     syncMentionsFromText,
 } from '@/lib/compose/mentions';
 import { buildPlatformPreview } from '@/lib/compose/platform-preview';
+import { readVideoMetadata } from '@/lib/compose/video';
 import {
     defaultSettings,
     normalizeSettings,
@@ -54,6 +56,7 @@ import SaveIndicator from './save-indicator';
 import { ScheduleTray } from './schedule-tray';
 import { SubmitBar } from './submit-bar';
 import { TargetStatusChips } from './target-status-chips';
+import { VideoEditor } from './video-editor';
 
 /** What the image editor is currently working on. */
 type Editing =
@@ -63,7 +66,9 @@ type Editing =
           index: number;
       }
     | { kind: 'reedit'; url: string; settings: EditSettings; mediaId: string }
-    | { kind: 'raw'; url: string; mediaId: string };
+    | { kind: 'raw'; url: string; mediaId: string }
+    | { kind: 'video'; url: string; durationSeconds: number; mediaId: string }
+    | { kind: 'video-new'; url: string; durationSeconds: number; file: File };
 
 /** Stable fallback so a closed editor doesn't reallocate settings each render. */
 const DEFAULT_EDIT_SETTINGS = defaultSettings();
@@ -207,6 +212,16 @@ export default function Composer({
         onReplaceMedia: (m) => dispatch({ type: 'replaceMedia', media: m }),
     });
 
+    const videoEditor = useVideoEditor({
+        onEnsurePost: ensurePost,
+        onComplete: (oldMediaId, media) => {
+            dispatch({ type: 'addMedia', media });
+            if (oldMediaId) {
+                dispatch({ type: 'removeMedia', mediaId: oldMediaId });
+            }
+        },
+    });
+
     // The editor opens automatically when image(s) are added and when an attached
     // image is clicked. A multi-image add becomes a `batch` edited one item at a
     // time; the editor shows the batch as a thumbnail strip.
@@ -224,6 +239,8 @@ export default function Composer({
                 for (const it of e.items) {
                     URL.revokeObjectURL(it.url);
                 }
+            } else if (e?.kind === 'video-new') {
+                URL.revokeObjectURL(e.url);
             }
         },
         [],
@@ -269,7 +286,18 @@ export default function Composer({
         }
 
         if (videos.length > 0) {
-            void mediaUploads.handleFiles(videos);
+            const file = videos[0];
+            try {
+                const meta = await readVideoMetadata(file);
+                setEditing({
+                    kind: 'video-new',
+                    url: URL.createObjectURL(file),
+                    durationSeconds: meta.durationSeconds,
+                    file,
+                });
+            } catch {
+                toast.error('That video could not be read.');
+            }
 
             return;
         }
@@ -283,6 +311,28 @@ export default function Composer({
                 url: URL.createObjectURL(f),
             })),
             index: 0,
+        });
+    }
+
+    // Revoke the object URL for a video-new session and close the editor.
+    function closeVideoEditing() {
+        if (editing?.kind === 'video-new') {
+            URL.revokeObjectURL(editing.url);
+        }
+        setEditing(null);
+    }
+
+    // Open an attached video in the video editor.
+    function openVideo(mediaId: string) {
+        const m = state.media.find((x) => x.id === mediaId);
+        if (!m || m.kind !== 'video') {
+            return;
+        }
+        setEditing({
+            kind: 'video',
+            url: m.url,
+            durationSeconds: m.duration_seconds ?? 0,
+            mediaId: m.id,
         });
     }
 
@@ -333,7 +383,7 @@ export default function Composer({
             if (!ok) {
                 return;
             }
-        } else {
+        } else if (editing.kind === 'raw') {
             // A plain image beautified for the first time: keep the raw image as
             // the source, attach the composed result, drop the raw attachment.
             const rawBlob = await fetch(editing.url).then((r) => r.blob());
@@ -823,12 +873,17 @@ export default function Composer({
                         handleFiles={handleAddedFiles}
                         dismissPending={mediaUploads.dismissPending}
                         onImageClick={openImage}
+                        onVideoClick={openVideo}
                     />
                 )}
 
                 {!readOnly && (
                     <ImageEditor
-                        open={editing !== null}
+                        open={
+                            editing !== null &&
+                            editing.kind !== 'video' &&
+                            editing.kind !== 'video-new'
+                        }
                         sourceUrl={editorSourceUrl}
                         initialSettings={editorSettings}
                         onApply={applyEditing}
@@ -837,6 +892,73 @@ export default function Composer({
                         variant={editing?.kind === 'batch' ? 'new' : 'existing'}
                         isSaving={imageEditor.isSaving}
                         queue={editorQueue}
+                    />
+                )}
+
+                {!readOnly && (
+                    <VideoEditor
+                        open={
+                            editing?.kind === 'video' ||
+                            editing?.kind === 'video-new'
+                        }
+                        variant={
+                            editing?.kind === 'video-new' ? 'new' : 'existing'
+                        }
+                        sourceUrl={
+                            editing?.kind === 'video' ||
+                            editing?.kind === 'video-new'
+                                ? editing.url
+                                : null
+                        }
+                        durationSeconds={
+                            editing?.kind === 'video' ||
+                            editing?.kind === 'video-new'
+                                ? editing.durationSeconds
+                                : 0
+                        }
+                        phase={videoEditor.phase}
+                        progress={videoEditor.progress}
+                        onCancel={closeVideoEditing}
+                        onSkip={() => {
+                            if (editing?.kind !== 'video-new') {
+                                return;
+                            }
+                            void mediaUploads.handleFiles([editing.file]);
+                            closeVideoEditing();
+                        }}
+                        onApply={async (settings) => {
+                            if (
+                                editing?.kind !== 'video' &&
+                                editing?.kind !== 'video-new'
+                            ) {
+                                return;
+                            }
+                            try {
+                                const source =
+                                    editing.kind === 'video-new'
+                                        ? editing.file
+                                        : await fetch(editing.url).then((r) =>
+                                              r.blob(),
+                                          );
+                                const oldMediaId =
+                                    editing.kind === 'video'
+                                        ? editing.mediaId
+                                        : null;
+                                const ok = await videoEditor.apply({
+                                    source,
+                                    oldMediaId,
+                                    settings,
+                                    limits: selectedVideoLimits,
+                                });
+                                if (ok) {
+                                    closeVideoEditing();
+                                }
+                            } catch {
+                                toast.error(
+                                    'Could not load the video to edit. Please try again.',
+                                );
+                            }
+                        }}
                     />
                 )}
 
