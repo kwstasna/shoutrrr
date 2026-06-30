@@ -61,7 +61,11 @@ test('billing page does not show portal management for a customer without a subs
 
 test('billing page shows current month x post usage', function () {
     Date::setTestNow('2026-06-15 12:00:00');
-    config(['subscriptions.enabled' => true]);
+    config([
+        'subscriptions.enabled' => true,
+        'subscriptions.monthly_x_budget_cents' => 500,
+        'subscriptions.x_post_cost_cents' => 1.5,
+    ]);
     Workspace::factory()->create();
     $user = User::factory()->create();
     $workspace = Workspace::factory()->create(['owner_id' => $user->id]);

@@ -22,7 +22,11 @@ use Illuminate\Support\Facades\Date;
 use Laravel\Cashier\Subscription;
 
 beforeEach(function () {
-    config(['subscriptions.enabled' => true]);
+    config([
+        'subscriptions.enabled' => true,
+        'subscriptions.monthly_x_budget_cents' => 500,
+        'subscriptions.x_post_cost_cents' => 1.5,
+    ]);
 });
 
 test('publishing is free and unlimited when self hosted mode disables billing', function () {
