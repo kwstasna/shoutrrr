@@ -102,11 +102,11 @@ class FetchPostTargetReplies implements ShouldBeUnique, ShouldQueue
             $since !== null ? Date::parse($since)->toImmutable() : null,
         );
 
-        $target->forceFill(['reply_fetched_at' => Date::now()])->save();
-
         if (! $result->isOk()) {
             return;
         }
+
+        $target->forceFill(['reply_fetched_at' => Date::now()])->save();
 
         $inserted = [];
 

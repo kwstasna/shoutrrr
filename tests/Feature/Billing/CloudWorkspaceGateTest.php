@@ -52,14 +52,20 @@ function subscribeWorkspaceForCloudGate(Workspace $workspace): void
 }
 
 test('the first cloud workspace can use the app without a subscription', function () {
+    Bus::fake();
     $workspace = Workspace::factory()->create();
     actingInWorkspace($workspace);
-    addXAccount($workspace);
 
-    $this->postJson('/posts', [
-        'segments' => ['first workspace draft'],
-        'destination' => ['kind' => 'all'],
-    ])->assertCreated();
+    $post = Post::factory()->create([
+        'workspace_id' => $workspace->id,
+        'author_id' => auth()->id(),
+        'status' => PostStatus::Draft,
+    ]);
+    PostTarget::factory()->for($post)->create([
+        'connected_account_id' => addXAccount($workspace)->id,
+    ]);
+
+    $this->postJson("/posts/{$post->id}/publish")->assertOk();
 });
 
 test('additional cloud workspaces can draft without a subscription', function () {

@@ -84,21 +84,16 @@ class WorkspaceSubscriptionGate
     {
         [$periodStart, $periodEnd] = $this->currentMonthlyPeriod();
 
-        $usage = XPostUsage::query()
-            ->where('workspace_id', $workspace->id)
-            ->whereDate('period_start', $periodStart->toDateString())
-            ->first();
-
-        if ($usage instanceof XPostUsage) {
-            return $usage;
-        }
-
-        return XPostUsage::query()->create([
-            'workspace_id' => $workspace->id,
-            'period_start' => $periodStart->toDateString(),
-            'period_end' => $periodEnd->toDateString(),
-            'used' => 0,
-        ]);
+        return XPostUsage::query()->firstOrCreate(
+            [
+                'workspace_id' => $workspace->id,
+                'period_start' => $periodStart,
+            ],
+            [
+                'period_end' => $periodEnd,
+                'used' => 0,
+            ],
+        );
     }
 
     private function isFirstWorkspace(Workspace $workspace): bool

@@ -42,6 +42,13 @@ test('it skips targets published outside the window', function () {
 
 test('it skips targets checked inside the polling interval', function () {
     Queue::fake();
+    app(InstanceSettings::class)->update([
+        'engagement_poll_interval_minutes' => [
+            'x' => 360,
+            'bluesky' => 60,
+            'linkedin' => 360,
+        ],
+    ]);
 
     $account = ConnectedAccount::factory()->create(['platform' => Platform::Bluesky, 'status' => ConnectedAccountStatus::Active]);
     PostTarget::factory()->for($account, 'account')->create([

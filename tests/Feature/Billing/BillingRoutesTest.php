@@ -9,13 +9,26 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\Process\Process;
 
+afterEach(function () {
+    Date::setTestNow();
+});
+
 test('billing routes exist but are inactive on self hosted instances', function () {
     expect(config('subscriptions.enabled'))->toBeFalse()
         ->and(Route::has('billing.index'))->toBeTrue()
         ->and(Route::has('billing.checkout'))->toBeTrue()
         ->and(Route::has('billing.portal'))->toBeTrue();
 
-    $this->actingAs(User::factory()->create())
+    $user = User::factory()->create();
+    $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
+    WorkspaceMembership::factory()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $user->id,
+        'role' => WorkspaceRole::Owner,
+    ]);
+    $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+    $this->actingAs($user)
         ->get(route('billing.index'))
         ->assertNotFound();
 });
@@ -96,8 +109,6 @@ test('billing page shows current month x post usage', function () {
             ->where('monthlyXPostLimit', 333)
             ->where('monthlyXPostUsed', 12)
             ->where('monthlyXPostRemaining', 321));
-
-    Date::setTestNow();
 });
 
 test('portal is unavailable for a customer without a subscription', function () {

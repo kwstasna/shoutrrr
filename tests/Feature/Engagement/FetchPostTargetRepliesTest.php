@@ -76,3 +76,17 @@ test('re-running the job does not duplicate replies', function () {
 
     expect(PostTargetReply::withoutGlobalScopes()->count())->toBe(1);
 });
+
+test('a failed fetch does not stamp reply_fetched_at', function () {
+    $target = targetWithPost();
+
+    $connector = Mockery::mock(EngagementConnector::class);
+    $connector->shouldReceive('fetchReplies')->andReturn(ReplyFetchResult::failed('boom'));
+    $registry = Mockery::mock(EngagementConnectorRegistry::class);
+    $registry->shouldReceive('for')->andReturn($connector);
+    app()->instance(EngagementConnectorRegistry::class, $registry);
+
+    (new FetchPostTargetReplies($target))->handle(app(EngagementConnectorRegistry::class), app(TokenManager::class));
+
+    expect($target->fresh()->reply_fetched_at)->toBeNull();
+});
