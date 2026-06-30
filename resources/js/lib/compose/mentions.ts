@@ -132,11 +132,7 @@ export function syncMentionsFromText(
 
         const savedMention = saved.get(label);
         if (savedMention) {
-            return {
-                id: mentionIdFromLabel(savedMention.name),
-                label: savedMention.name,
-                handles: savedMention.handles,
-            };
+            return savedMentionToPlaceholder(savedMention);
         }
 
         return createMention(label);
@@ -200,6 +196,66 @@ export function mentionInputValue(name: string): string {
     return name.replace(/^@/, '');
 }
 
+/**
+ * Replace whole-token occurrences of `fromLabel` with `toLabel`. A label that is
+ * only a substring of a longer handle is left alone — so renaming the in-progress
+ * `@` mention does not rewrite the `@` inside an existing `@handle`.
+ */
+export function replaceMentionLabel(
+    text: string,
+    fromLabel: string,
+    toLabel: string,
+): string {
+    if (fromLabel === '' || fromLabel === toLabel) {
+        return text;
+    }
+
+    let result = '';
+    let cursor = 0;
+    for (
+        let index = text.indexOf(fromLabel);
+        index !== -1;
+        index = text.indexOf(fromLabel, cursor)
+    ) {
+        const before = index === 0 ? '' : text[index - 1];
+        const after = text[index + fromLabel.length] ?? '';
+        result += text.slice(cursor, index);
+        result += isMentionTokenBoundary(before, after) ? toLabel : fromLabel;
+        cursor = index + fromLabel.length;
+    }
+
+    return result + text.slice(cursor);
+}
+
+/** Punctuation HANDLE_PATTERN permits immediately after a mention handle. */
+export const MENTION_BOUNDARY_PUNCTUATION = '.,!?;:';
+
+/** A char that can precede a mention token: the token start ('') or whitespace. */
+export function startsMentionBoundary(char: string): boolean {
+    return char === '' || /\s/.test(char);
+}
+
+/**
+ * A char that can close a mention token: the token end (''), whitespace, or the
+ * punctuation HANDLE_PATTERN permits after a handle.
+ */
+export function endsMentionBoundary(char: string): boolean {
+    return (
+        char === '' ||
+        /\s/.test(char) ||
+        MENTION_BOUNDARY_PUNCTUATION.includes(char)
+    );
+}
+
+/**
+ * A mention spans a whole token when it is preceded by the start or whitespace
+ * and followed by the end, whitespace, or the punctuation HANDLE_PATTERN allows.
+ */
+function isMentionTokenBoundary(before: string, after: string): boolean {
+    return startsMentionBoundary(before) && endsMentionBoundary(after);
+}
+
+/** Stable mention id from a workspace library name or label. */
 function mentionIdFromLabel(label: string): string {
     const id = label
         .replace(/^@/, '')
@@ -207,4 +263,14 @@ function mentionIdFromLabel(label: string): string {
         .replace(/[^a-z0-9_-]+/g, '-');
 
     return id || crypto.randomUUID();
+}
+
+export function savedMentionToPlaceholder(
+    saved: WorkspaceMention,
+): MentionPlaceholder {
+    return {
+        id: mentionIdFromLabel(saved.name),
+        label: saved.name,
+        handles: saved.handles,
+    };
 }
