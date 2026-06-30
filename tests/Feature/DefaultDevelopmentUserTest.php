@@ -13,6 +13,8 @@ it('seeds the default user with a current workspace in development', function ()
 
     $user = User::query()->where('email', 'test@example.com')->firstOrFail();
 
+    $secondUser = User::query()->where('email', 'test2@example.com')->firstOrFail();
+
     expect($user->name)->toBe('Test User')
         ->and($user->isInstanceOwner())->toBeTrue()
         ->and($user->current_workspace_id)->not->toBeNull()
@@ -21,6 +23,13 @@ it('seeds the default user with a current workspace in development', function ()
             ->where('workspace_id', $user->current_workspace_id)
             ->where('user_id', $user->id)
             ->where('role', WorkspaceRole::Owner)
+            ->exists())->toBeTrue()
+        ->and($secondUser->name)->toBe('Test User 2')
+        ->and($secondUser->current_workspace_id)->toBe($user->current_workspace_id)
+        ->and(WorkspaceMembership::query()
+            ->where('workspace_id', $user->current_workspace_id)
+            ->where('user_id', $secondUser->id)
+            ->where('role', WorkspaceRole::Member)
             ->exists())->toBeTrue();
 });
 
@@ -32,5 +41,6 @@ it('does not seed the default user outside development', function (): void {
         '--force' => true,
     ])->assertExitCode(0);
 
-    expect(User::query()->where('email', 'test@example.com')->exists())->toBeFalse();
+    expect(User::query()->where('email', 'test@example.com')->exists())->toBeFalse()
+        ->and(User::query()->where('email', 'test2@example.com')->exists())->toBeFalse();
 });

@@ -48,5 +48,24 @@ class DefaultUserSeeder extends Seeder
         );
 
         $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+        $secondUser = User::query()->firstOrCreate(
+            ['email' => 'test2@example.com'],
+            [
+                'name' => 'Test User 2',
+                'password' => 'password',
+                'email_verified_at' => now(),
+            ],
+        );
+
+        WorkspaceMembership::query()->firstOrCreate(
+            [
+                'workspace_id' => $workspace->id,
+                'user_id' => $secondUser->id,
+            ],
+            ['role' => WorkspaceRole::Member],
+        );
+
+        $secondUser->forceFill(['current_workspace_id' => $workspace->id])->save();
     }
 }
