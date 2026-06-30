@@ -133,7 +133,6 @@ class InstanceSettings
      */
     private function settings(): array
     {
-        /** @var array<string, mixed> $settings */
         return Cache::rememberForever(self::CacheKey, fn (): array => InstanceSetting::query()
             ->get()
             ->mapWithKeys(fn (InstanceSetting $setting): array => [$setting->key => $setting->value])
