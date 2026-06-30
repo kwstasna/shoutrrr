@@ -58,14 +58,28 @@ class DefaultUserSeeder extends Seeder
             ],
         );
 
-        WorkspaceMembership::query()->firstOrCreate(
+        WorkspaceMembership::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('user_id', $secondUser->id)
+            ->delete();
+
+        $secondWorkspace = Workspace::query()->firstOrCreate(
+            ['slug' => 'test-workspace-2'],
             [
-                'workspace_id' => $workspace->id,
-                'user_id' => $secondUser->id,
+                'name' => 'Test Workspace 2',
+                'owner_id' => $secondUser->id,
+                'timezone' => 'UTC',
             ],
-            ['role' => WorkspaceRole::Member],
         );
 
-        $secondUser->forceFill(['current_workspace_id' => $workspace->id])->save();
+        WorkspaceMembership::query()->firstOrCreate(
+            [
+                'workspace_id' => $secondWorkspace->id,
+                'user_id' => $secondUser->id,
+            ],
+            ['role' => WorkspaceRole::Owner],
+        );
+
+        $secondUser->forceFill(['current_workspace_id' => $secondWorkspace->id])->save();
     }
 }
