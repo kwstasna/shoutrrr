@@ -61,6 +61,7 @@ test('the job inserts fetched replies with the workspace id', function () {
     $reply = PostTargetReply::withoutGlobalScopes()->first();
     expect($reply->remote_reply_id)->toBe('at://r1');
     expect($reply->workspace_id)->toBe($target->post->workspace_id);
+    expect($target->fresh()->reply_fetched_at)->not->toBeNull();
 });
 
 test('re-running the job does not duplicate replies', function () {

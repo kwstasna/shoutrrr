@@ -11,5 +11,22 @@ return [
             'INSTANCE_WORKSPACE_CREATION_ENABLED',
             env('WORKSPACES_CAN_CREATE_WORKSPACE', true),
         ),
+        'polling' => [
+            'engagement' => [
+                'x' => 360,
+                'bluesky' => 15,
+                'linkedin' => 15,
+            ],
+            'post_metrics' => [
+                'x' => 360,
+                'bluesky' => 15,
+                'linkedin' => 15,
+            ],
+            'account_metrics' => [
+                'x' => 1440,
+                'bluesky' => 1440,
+                'linkedin' => 1440,
+            ],
+        ],
     ],
 ];

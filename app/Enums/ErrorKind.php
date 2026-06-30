@@ -10,6 +10,7 @@ enum ErrorKind: string
     case AuthExpired = 'auth_expired';
     case Validation = 'validation';
     case DuplicateContent = 'duplicate_content';
+    case BillingRequired = 'billing_required';
     case Network = 'network';
     case ServerError = 'server_error';
     case MediaProcessing = 'media_processing';
@@ -19,7 +20,7 @@ enum ErrorKind: string
     {
         return match ($this) {
             self::RateLimited, self::Network, self::ServerError, self::MediaProcessing => true,
-            self::AuthExpired, self::Validation, self::DuplicateContent, self::Unknown => false,
+            self::AuthExpired, self::Validation, self::DuplicateContent, self::BillingRequired, self::Unknown => false,
         };
     }
 }
