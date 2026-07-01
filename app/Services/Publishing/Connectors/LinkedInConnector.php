@@ -65,7 +65,10 @@ class LinkedInConnector implements PublishConnector
         }
 
         $author = 'urn:li:person:'.$context->account->remote_account_id;
-        $text = $context->segments[0] ?? '';
+        $text = implode("\n", array_values(array_filter(
+            array_map(static fn (string $segment): string => trim($segment), $context->segments),
+            static fn (string $segment): bool => $segment !== '',
+        )));
 
         $videoMedia = array_values(array_filter($context->media, fn (PostMedia $m): bool => $m->isVideo()));
         $videoUrn = null;

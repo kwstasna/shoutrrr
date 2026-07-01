@@ -186,14 +186,15 @@ test('linkedin fails when no post id is returned', function () {
         ->and($result->errorMessage)->toBe('LinkedIn did not return a post id');
 });
 
-test('linkedin sends only the first segment (threadMax 1)', function () {
+test('linkedin joins every segment into one post', function () {
     Http::fake([
         'https://api.linkedin.com/rest/posts' => Http::response([], 201, ['x-restli-id' => 'urn:li:share:1']),
     ]);
 
     app(LinkedInConnector::class)->publish(liContext(['first', 'second']));
 
-    Http::assertSentCount(1);
+    Http::assertSent(fn ($request) => $request->url() === 'https://api.linkedin.com/rest/posts'
+        && $request['commentary'] === "first\nsecond");
 });
 
 test('linkedin maps 401 to AuthExpired', function () {

@@ -2,6 +2,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { CircleAlert, Plug, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 
+import BlueskyOAuthController from '@/actions/App/Http/Controllers/ConnectedAccounts/BlueskyOAuthController';
 import ConnectedAccountController from '@/actions/App/Http/Controllers/ConnectedAccounts/ConnectedAccountController';
 import OAuthConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/OAuthConnectionController';
 import { AccountCard } from '@/components/accounts/account-card';
@@ -19,6 +20,24 @@ import {
 import { removeById } from '@/lib/optimistic';
 
 export const ACCOUNT_GRID_CLASS = 'grid grid-cols-1 gap-4 lg:grid-cols-2';
+
+/**
+ * Resolve the OAuth redirect URL used to (re)connect an account. Bluesky has a
+ * dedicated controller; every other platform shares the generic OAuth route.
+ * A saved custom PDS is replayed as `pds_url` so reconnect targets the original
+ * authorization server instead of falling back to the bsky.social default.
+ */
+export function reconnectOAuthUrl(account: Account): string {
+    if (account.platform !== 'bluesky') {
+        return OAuthConnectionController.redirect.url({
+            platform: account.platform,
+        });
+    }
+
+    return BlueskyOAuthController.redirect.url({
+        query: account.pds_url ? { pds_url: account.pds_url } : {},
+    });
+}
 
 type Props = {
     accounts: Account[];
@@ -46,9 +65,7 @@ export default function ConnectedAccounts({
     };
 
     const reconnectOAuth = (account: Account) => {
-        window.location.href = OAuthConnectionController.redirect.url({
-            platform: account.platform,
-        });
+        window.location.href = reconnectOAuthUrl(account);
     };
 
     const { flash } = usePage().props;

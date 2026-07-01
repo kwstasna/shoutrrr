@@ -21,6 +21,10 @@ void createInertiaApp({
                 return null;
             case name === 'error':
                 return null;
+            // Public MCP endpoint landing page — humans who hit /mcp in a
+            // browser. No app shell/sidebar (no authenticated shared props).
+            case name === 'mcp/landing':
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name === 'settings/instance' ||
