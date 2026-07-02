@@ -149,6 +149,108 @@ test('bluesky oauth can start from an advanced service url', function () {
         && ! isset($request['login_hint']));
 });
 
+test('bluesky oauth binds an identifier to the expected did when using an advanced service url', function () {
+    blueskyOAuthOwner();
+
+    Http::fake(function (Request $request) {
+        $url = $request->url();
+
+        return match (true) {
+            str_contains($url, 'com.atproto.identity.resolveHandle') => Http::response([
+                'did' => 'did:plc:abc',
+            ]),
+            $url === 'https://pds.example/.well-known/oauth-protected-resource' => Http::response([
+                'authorization_servers' => ['https://auth.example'],
+            ]),
+            $url === 'https://auth.example/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth.example',
+                'authorization_endpoint' => 'https://auth.example/oauth/authorize',
+                'token_endpoint' => 'https://auth.example/oauth/token',
+                'pushed_authorization_request_endpoint' => 'https://auth.example/oauth/par',
+            ]),
+            $url === 'https://auth.example/oauth/par' => Http::response(['request_uri' => 'urn:request:456'], 201, ['DPoP-Nonce' => 'nonce-1']),
+            default => Http::response([], 404),
+        };
+    });
+
+    test()->get(route('accounts.bluesky.oauth', [
+        'identifier' => 'ada.bsky.social',
+        'pds_url' => 'https://pds.example',
+    ]))->assertRedirect('https://auth.example/oauth/authorize?client_id='.urlencode(route('oauth.bluesky.metadata')).'&request_uri=urn%3Arequest%3A456');
+
+    $state = array_key_first(session('accounts.bluesky.oauth'));
+    $context = session("accounts.bluesky.oauth.{$state}");
+
+    expect($context['expected_did'])->toBe('did:plc:abc')
+        ->and($context['pds'])->toBe('https://pds.example');
+});
+
+test('bluesky oauth fails closed when an advanced service url identifier cannot be verified', function () {
+    blueskyOAuthOwner();
+
+    Http::fake(fn () => Http::response([], 404));
+
+    test()->from(route('accounts.index'))
+        ->get(route('accounts.bluesky.oauth', [
+            'identifier' => 'ada.bsky.social',
+            'pds_url' => 'https://pds.example',
+        ]))
+        ->assertRedirect(route('accounts.index'))
+        ->assertSessionHas('error');
+
+    expect(session('accounts.bluesky.oauth'))->toBeNull();
+});
+
+test('bluesky oauth rejects private discovered authorization servers', function () {
+    blueskyOAuthOwner();
+
+    Http::fake(function (Request $request) {
+        $url = $request->url();
+
+        return match (true) {
+            $url === 'https://pds.example/.well-known/oauth-protected-resource' => Http::response([
+                'authorization_servers' => ['https://127.0.0.1'],
+            ]),
+            default => Http::response([], 404),
+        };
+    });
+
+    test()->from(route('accounts.index'))
+        ->get(route('accounts.bluesky.oauth', ['pds_url' => 'https://pds.example']))
+        ->assertRedirect(route('accounts.index'))
+        ->assertSessionHas('error');
+
+    Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://127.0.0.1'));
+});
+
+test('bluesky oauth rejects unsafe metadata endpoint urls', function () {
+    blueskyOAuthOwner();
+
+    Http::fake(function (Request $request) {
+        $url = $request->url();
+
+        return match (true) {
+            $url === 'https://pds.example/.well-known/oauth-protected-resource' => Http::response([
+                'authorization_servers' => ['https://auth.example'],
+            ]),
+            $url === 'https://auth.example/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth.example',
+                'authorization_endpoint' => 'https://auth.example/oauth/authorize',
+                'token_endpoint' => 'https://localhost/oauth/token',
+                'pushed_authorization_request_endpoint' => 'https://auth.example/oauth/par',
+            ]),
+            default => Http::response([], 404),
+        };
+    });
+
+    test()->from(route('accounts.index'))
+        ->get(route('accounts.bluesky.oauth', ['pds_url' => 'https://pds.example']))
+        ->assertRedirect(route('accounts.index'))
+        ->assertSessionHas('error');
+
+    Http::assertNotSent(fn (Request $request): bool => $request->url() === 'https://auth.example/oauth/par');
+});
+
 test('bluesky oauth callback stores an oauth account', function () {
     [, $workspace] = blueskyOAuthOwner();
     fakeDefaultBlueskyOAuthDiscovery();

@@ -25,7 +25,7 @@ class BlueskyConnector
 
         // Guard the resolved endpoint too (not just a user override) before sending
         // credentials to it — the DID-document endpoint is attacker-influenceable.
-        $this->assertSafePds($pds);
+        $this->assertSafeServiceUrl($pds);
 
         $sessionResponse = $this->http
             ->timeout(10)
@@ -99,7 +99,7 @@ class BlueskyConnector
 
         if ($override !== null && trim($override) !== '') {
             $pds = rtrim(trim($override), '/');
-            $this->assertSafePds($pds);
+            $this->assertSafeServiceUrl($pds);
 
             try {
                 $did = $this->resolveDid($identifier);
@@ -128,7 +128,7 @@ class BlueskyConnector
      *
      * @throws RuntimeException when the endpoint is not a safe public https URL
      */
-    private function assertSafePds(string $url): void
+    public function assertSafeServiceUrl(string $url): void
     {
         if (parse_url($url, PHP_URL_SCHEME) !== 'https') {
             throw new RuntimeException('The Bluesky service URL must use https.');
@@ -168,7 +168,7 @@ class BlueskyConnector
 
         foreach ($candidates as $service) {
             try {
-                $this->assertSafePds($service);
+                $this->assertSafeServiceUrl($service);
             } catch (RuntimeException) {
                 continue;
             }

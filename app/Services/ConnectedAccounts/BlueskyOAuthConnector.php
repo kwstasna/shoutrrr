@@ -45,6 +45,11 @@ class BlueskyOAuthConnector
             $pdsUrl !== null && trim($pdsUrl) !== '' => $this->bluesky->resolvePds('bsky.social', $pdsUrl),
             default => 'https://bsky.social',
         };
+
+        if ($identifier !== null && $identifier !== '' && $did === null) {
+            throw new RuntimeException('Could not verify that Bluesky handle. Check the handle or leave it blank to choose on Bluesky.');
+        }
+
         try {
             $metadata = $this->authorizationMetadata($pds);
         } catch (RuntimeException $e) {
@@ -220,6 +225,8 @@ class BlueskyOAuthConnector
      */
     private function authorizationMetadata(string $pds): array
     {
+        $this->bluesky->assertSafeServiceUrl($pds);
+
         $resource = $this->http->timeout(5)->connectTimeout(3)->acceptJson()
             ->get($pds.'/.well-known/oauth-protected-resource');
 
@@ -227,6 +234,8 @@ class BlueskyOAuthConnector
         $endpoint = is_string($authServer) && $authServer !== ''
             ? rtrim($authServer, '/')
             : $pds;
+
+        $this->bluesky->assertSafeServiceUrl($endpoint);
 
         $response = $this->http->timeout(5)->connectTimeout(3)->acceptJson()
             ->get($endpoint.'/.well-known/oauth-authorization-server');
@@ -242,6 +251,8 @@ class BlueskyOAuthConnector
             if (! is_string($metadata[$key] ?? null) || $metadata[$key] === '') {
                 throw new RuntimeException('Bluesky OAuth metadata is incomplete.');
             }
+
+            $this->bluesky->assertSafeServiceUrl($metadata[$key]);
         }
 
         return $metadata;
