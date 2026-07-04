@@ -1,19 +1,25 @@
 <div align="center">
 
+<img src=".github/assets/og.webp" alt="Shoutrrr" width="100%" />
+
 # Shoutrrr
 
 **An open-source, self-hostable alternative to Buffer, Typefully & Hootsuite.**
 
 Write once, publish everywhere. Schedule posts to X, Bluesky, and LinkedIn from one calendar — on your own server, with your own data.
 
-![License](https://img.shields.io/badge/license-Apache--2.0-blue)
-![PHP](https://img.shields.io/badge/PHP-8.5-777BB4)
-![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20)
-![React](https://img.shields.io/badge/React-19-61DAFB)
+[![License](https://img.shields.io/github/license/coollabsio/shoutrrr?style=for-the-badge&color=4c1)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/coollabsio/shoutrrr?style=for-the-badge&logo=github&color=f5c518)](https://github.com/coollabsio/shoutrrr/stargazers)
+[![Latest release](https://img.shields.io/github/v/release/coollabsio/shoutrrr?style=for-the-badge&logo=github&color=6f42c1&sort=semver)](https://github.com/coollabsio/shoutrrr/releases)
+[![GHCR pulls](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fghcr-badge.elias.eu.org%2Fapi%2Fcoollabsio%2Fshoutrrr%2Fshoutrrr&query=%24.downloadCount&label=docker%20pulls&style=for-the-badge&logo=docker&logoColor=white&color=2496ED)](https://github.com/coollabsio/shoutrrr/pkgs/container/shoutrrr)
+
+[![PHP](https://img.shields.io/badge/PHP-8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net)
+[![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![Inertia](https://img.shields.io/badge/Inertia-3-9553E9?style=for-the-badge&logo=inertia&logoColor=white)](https://inertiajs.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 
 </div>
-
-<!-- Add a product screenshot or GIF here, e.g. ![Shoutrrr composer](docs/screenshot.png) -->
 
 ## What is Shoutrrr?
 
@@ -31,11 +37,11 @@ It's built for individuals and teams: invite collaborators into a shared workspa
 
 ## Supported platforms
 
-| Platform        | Connect with     | Publishing                                                | Threads         | Analytics                            |
-| --------------- | ---------------- | --------------------------------------------------------- | --------------- | ------------------------------------ |
-| **X** (Twitter) | OAuth 2.0        | ✅ (≤280 chars, ≤25,000 for Premium, up to 4 media)       | ✅              | likes, reposts, replies, impressions |
-| **Bluesky**     | ATProto OAuth or app passwords     | ✅ (≤300 graphemes, up to 4 images or 1 video)            | ✅              | likes, reposts, replies              |
-| **LinkedIn**    | OAuth 2.0 (OIDC) | ✅ (≤3000 chars, up to 9 images or 1 video)               | — (single post) | not available for personal accounts  |
+| Platform        | Connect with                   | Publishing                                          | Threads         | Analytics                            |
+| --------------- | ------------------------------ | --------------------------------------------------- | --------------- | ------------------------------------ |
+| **X** (Twitter) | OAuth 2.0                      | ✅ (≤280 chars, ≤25,000 for Premium, up to 4 media) | ✅              | likes, reposts, replies, impressions |
+| **Bluesky**     | ATProto OAuth or app passwords | ✅ (≤300 graphemes, up to 4 images or 1 video)      | ✅              | likes, reposts, replies              |
+| **LinkedIn**    | OAuth 2.0 (OIDC)               | ✅ (≤3000 chars, up to 9 images or 1 video)         | — (single post) | not available for personal accounts  |
 
 ## Features
 
@@ -94,7 +100,6 @@ Shoutrrr runs its startup tasks automatically, including database migrations. Op
 
 For a real public deployment, set `APP_URL` to your HTTPS domain and set `SESSION_SECURE_COOKIE=true`. To test a specific release candidate, replace `latest` with a version tag such as `1.0.0-rc.2` in the commands above.
 
-
 To reset all local test data:
 
 ```bash
@@ -132,14 +137,15 @@ Set `INERTIA_SSR_ENABLED=true` for server-side rendering. To run the worker/sche
 3. Under the `app` service, add a **Domain** pointing at port **8080**. Coolify provisions the TLS certificate automatically.
 4. Add these **Environment Variables**:
 
-   | Variable | Value |
-   | --- | --- |
-   | `APP_KEY` | a Laravel key — generate one with `php artisan key:generate --show` |
-   | `APP_URL` | your domain, e.g. `https://social.example.com` (must match the domain above) |
-   | `APP_ENV` | `production` |
-   | `APP_DEBUG` | `false` |
+    | Variable    | Value                                                                        |
+    | ----------- | ---------------------------------------------------------------------------- |
+    | `APP_KEY`   | a Laravel key — generate one with `php artisan key:generate --show`          |
+    | `APP_URL`   | your domain, e.g. `https://social.example.com` (must match the domain above) |
+    | `APP_ENV`   | `production`                                                                 |
+    | `APP_DEBUG` | `false`                                                                      |
 
-   Add your `X_*`, `LINKEDIN_*`, and optional `GOOGLE_*` credentials here too (see [Connecting your accounts](#connecting-your-accounts)).
+    Add your `X_*`, `LINKEDIN_*`, and optional `GOOGLE_*` credentials here too (see [Connecting your accounts](#connecting-your-accounts)).
+
 5. Click **Deploy**.
 
 The Compose file declares named volumes for `storage` and the SQLite database, so your data and uploads survive redeploys. To run against managed Postgres/Redis instead, point the `DB_*` / `REDIS_*` env vars at them and switch `DB_CONNECTION`, `CACHE_STORE`, and `QUEUE_CONNECTION` accordingly.
@@ -231,6 +237,45 @@ A post is composed once, then split into one **target** per connected account. T
 | JS lint / format    | [oxlint](https://oxc.rs) / [oxfmt](https://oxc.rs)         | `bun run lint:check` / `bun run format:check`   |
 
 Run the full local gate (lint, format, type-check, refactor check, Pest suite) with `composer ci:check`.
+
+## Core maintainers
+
+<table>
+  <tr>
+    <td align="center" width="200">
+      <a href="https://github.com/andrasbacsai">
+        <img src="https://github.com/andrasbacsai.png" width="90" alt="Andras Bacsai" /><br />
+        <sub><b>Andras Bacsai</b></sub>
+      </a><br /><br />
+      <a href="https://github.com/andrasbacsai"><img src="https://img.shields.io/badge/-181717?style=flat-square&logo=github&logoColor=white" alt="GitHub" /></a>
+      <a href="https://x.com/heyandras"><img src="https://img.shields.io/badge/-000000?style=flat-square&logo=x&logoColor=white" alt="X" /></a>
+      <a href="https://bsky.app/profile/heyandras.dev"><img src="https://img.shields.io/badge/-0285FF?style=flat-square&logo=bluesky&logoColor=white" alt="Bluesky" /></a>
+      <a href="https://blog.andrasbacsai.com/"><img src="https://img.shields.io/badge/-4c1?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8+PGxpbmUgeDE9IjIiIHkxPSIxMiIgeDI9IjIyIiB5Mj0iMTIiLz48cGF0aCBkPSJNMTIgMmExNS4zIDE1LjMgMCAwIDEgNCAxMCAxNS4zIDE1LjMgMCAwIDEtNCAxMCAxNS4zIDE1LjMgMCAwIDEtNC0xMCAxNS4zIDE1LjMgMCAwIDEgNC0xMHoiLz48L3N2Zz4%3D" alt="Website" /></a>
+    </td>
+    <td align="center" width="200">
+      <a href="https://github.com/adiologydev">
+        <img src="https://github.com/adiologydev.png" width="90" alt="Aditya Tripathi" /><br />
+        <sub><b>Aditya Tripathi</b></sub>
+      </a><br /><br />
+      <a href="https://github.com/adiologydev"><img src="https://img.shields.io/badge/-181717?style=flat-square&logo=github&logoColor=white" alt="GitHub" /></a>
+      <a href="https://x.com/adityatripathid"><img src="https://img.shields.io/badge/-000000?style=flat-square&logo=x&logoColor=white" alt="X" /></a>
+      <a href="https://bsky.app/profile/adiology.bsky.social"><img src="https://img.shields.io/badge/-0285FF?style=flat-square&logo=bluesky&logoColor=white" alt="Bluesky" /></a>
+      <a href="https://adiology.dev"><img src="https://img.shields.io/badge/-4c1?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8+PGxpbmUgeDE9IjIiIHkxPSIxMiIgeDI9IjIyIiB5Mj0iMTIiLz48cGF0aCBkPSJNMTIgMmExNS4zIDE1LjMgMCAwIDEgNCAxMCAxNS4zIDE1LjMgMCAwIDEtNCAxMCAxNS4zIDE1LjMgMCAwIDEtNC0xMCAxNS4zIDE1LjMgMCAwIDEgNC0xMHoiLz48L3N2Zz4%3D" alt="Website" /></a>
+    </td>
+  </tr>
+</table>
+
+See all the people who have contributed in the [contributors list](https://github.com/coollabsio/shoutrrr/graphs/contributors).
+
+## Star history
+
+<a href="https://www.star-history.com/?type=date&repos=coollabsio%2Fshoutrrr">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=coollabsio/shoutrrr&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=coollabsio/shoutrrr&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=coollabsio/shoutrrr&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## License
 
