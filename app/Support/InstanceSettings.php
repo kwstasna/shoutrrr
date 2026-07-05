@@ -44,6 +44,11 @@ class InstanceSettings
         return $this->platformEnabled('account_metrics_polling_enabled', $platform);
     }
 
+    public function quoteTweetsEnabled(): bool
+    {
+        return $this->boolean('quote_tweets_enabled');
+    }
+
     public function registrationsAllowed(?string $invitationToken = null): bool
     {
         if (! $this->ownerExists()) {
@@ -72,7 +77,7 @@ class InstanceSettings
     }
 
     /**
-     * @return array{registrations_enabled: bool, workspace_creation_enabled: bool, usage_tracking_enabled: bool}
+     * @return array{registrations_enabled: bool, workspace_creation_enabled: bool, usage_tracking_enabled: bool, quote_tweets_enabled: bool}
      */
     public function all(): array
     {
@@ -80,6 +85,7 @@ class InstanceSettings
             'registrations_enabled' => $this->registrationsEnabled(),
             'workspace_creation_enabled' => $this->workspaceCreationEnabled(),
             'usage_tracking_enabled' => $this->usageTrackingEnabled(),
+            'quote_tweets_enabled' => $this->quoteTweetsEnabled(),
         ];
     }
 
@@ -124,7 +130,7 @@ class InstanceSettings
     }
 
     /**
-     * @param  array{registrations_enabled?: bool, workspace_creation_enabled?: bool, usage_tracking_enabled?: bool, engagement_polling_enabled?: bool|array{x: bool, bluesky: bool, linkedin: bool}, post_metrics_polling_enabled?: bool|array{x: bool, bluesky: bool, linkedin: bool}, account_metrics_polling_enabled?: bool|array{x: bool, bluesky: bool, linkedin: bool}, engagement_poll_interval_minutes?: array{x: int, bluesky: int, linkedin: int}, post_metrics_poll_interval_minutes?: array{x: int, bluesky: int, linkedin: int}, account_metrics_poll_interval_minutes?: array{x: int, bluesky: int, linkedin: int}}  $values
+     * @param  array{registrations_enabled?: bool, workspace_creation_enabled?: bool, usage_tracking_enabled?: bool, quote_tweets_enabled?: bool, engagement_polling_enabled?: bool|array{x: bool, bluesky: bool, linkedin: bool}, post_metrics_polling_enabled?: bool|array{x: bool, bluesky: bool, linkedin: bool}, account_metrics_polling_enabled?: bool|array{x: bool, bluesky: bool, linkedin: bool}, engagement_poll_interval_minutes?: array{x: int, bluesky: int, linkedin: int}, post_metrics_poll_interval_minutes?: array{x: int, bluesky: int, linkedin: int}, account_metrics_poll_interval_minutes?: array{x: int, bluesky: int, linkedin: int}}  $values
      */
     public function update(array $values): void
     {

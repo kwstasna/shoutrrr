@@ -149,21 +149,76 @@ export function readVideoMetadata(file: File): Promise<VideoMeta> {
         const url = URL.createObjectURL(file);
         const video = document.createElement('video');
         video.preload = 'metadata';
-        video.onloadedmetadata = () => {
+        video.muted = true;
+
+        let settled = false;
+        const finish = (run: () => void): void => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timer);
+            run();
             URL.revokeObjectURL(url);
-            resolve({
-                sizeBytes: file.size,
-                mime: file.type,
-                // Floor, not round: a 140.4s clip must not be rejected against a 140s cap.
-                durationSeconds: Math.floor(video.duration),
-                width: video.videoWidth,
-                height: video.videoHeight,
-            });
+            video.removeAttribute('src');
+            video.load();
         };
-        video.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error('Could not read video metadata.'));
+
+        const hasDimensions = (): boolean =>
+            video.videoWidth > 0 && video.videoHeight > 0;
+        const hasDuration = (): boolean =>
+            Number.isFinite(video.duration) && video.duration > 0;
+
+        const succeed = (): void =>
+            finish(() =>
+                resolve({
+                    sizeBytes: file.size,
+                    mime: file.type,
+                    // Floor, not round: a 140.4s clip must not be rejected against a
+                    // 140s cap. Clamp to ≥1: a valid video always has some duration,
+                    // but a sub-second trim (e.g. 0.8s) floors to 0, which fails the
+                    // confirm endpoint's `min:1` rule and 422s the upload.
+                    durationSeconds: Math.max(1, Math.floor(video.duration)),
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                }),
+            );
+        const bail = (): void =>
+            finish(() => reject(new Error('Could not read video metadata.')));
+
+        // A freshly-muxed MP4/WebM blob (e.g. the video editor's output) often
+        // fires `loadedmetadata` before the browser has resolved the real
+        // duration (reported as Infinity/NaN) or frame dimensions (0×0). Seeking
+        // past the end forces it to scan the file and settle both; `seeked` then
+        // carries trustworthy values. Only nudge when something is missing, so a
+        // normal file resolves immediately without the extra work.
+        const settle = (): void => {
+            if (hasDuration() && hasDimensions()) {
+                succeed();
+            } else if (Number.isFinite(video.duration) && !hasDimensions()) {
+                // Duration is known but dimensions aren't — decode one frame. Seek
+                // to a small non-zero offset rather than 0: the element already
+                // sits at currentTime 0, and assigning the current value is a no-op
+                // that never fires `seeked`, so we'd hang to the timeout instead.
+                video.currentTime = 1e-3;
+            } else {
+                video.currentTime = 1e101;
+            }
         };
+
+        video.onloadedmetadata = settle;
+        video.onseeked = () => {
+            if (hasDuration() && hasDimensions()) {
+                succeed();
+            } else {
+                bail();
+            }
+        };
+        video.onerror = bail;
+
+        // Never hang the upload flow on a video the browser can't parse.
+        const timer = setTimeout(bail, 15000);
+
         video.src = url;
     });
 }
