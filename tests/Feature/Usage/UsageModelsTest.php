@@ -10,6 +10,7 @@ it('persists a usage event with casts', function () {
 
     expect($event->fresh()->meta)->toBe(['status' => 200])
         ->and($event->quota_weight)->toBeInt()
+        ->and($event->cost_weight_microusd)->toBeInt()
         ->and($event->succeeded)->toBeTrue();
 });
 

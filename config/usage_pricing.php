@@ -13,6 +13,7 @@ return [
                 'posts_read' => ['label' => 'Posts read', 'unit_cost_usd' => 0.005],
                 'user_read' => ['label' => 'User read', 'unit_cost_usd' => 0.010],
                 'post_create' => ['label' => 'Post create', 'unit_cost_usd' => 0.015],
+                'post_create_with_url' => ['label' => 'Post create (with URL)', 'unit_cost_usd' => 0.200],
                 'content_create' => ['label' => 'Content create', 'unit_cost_usd' => 0.010],
                 'analytics_read' => ['label' => 'Analytics read', 'unit_cost_usd' => 0.005],
                 'media_metadata' => ['label' => 'Media metadata', 'unit_cost_usd' => 0.005],
@@ -21,6 +22,7 @@ return [
             ],
             'operations' => [
                 UsageOperation::POST => 'post_create',
+                UsageOperation::POST_WITH_URL => 'post_create_with_url',
                 UsageOperation::DELETE => 'interaction_delete',
                 UsageOperation::METRICS_FETCH_POST => 'analytics_read',
                 UsageOperation::METRICS_FETCH_ACCOUNT => 'analytics_read',

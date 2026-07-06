@@ -1,8 +1,10 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, useHttp } from '@inertiajs/react';
+import { useState } from 'react';
 
 import InstanceSettingsController from '@/actions/App/Http/Controllers/Settings/InstanceSettingsController';
 import Heading from '@/components/common/heading';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
     Select,
     SelectContent,
@@ -77,6 +79,31 @@ type UsageErrorEvent = {
     occurred_at: string;
 };
 
+type XUsageApp = {
+    app_id?: string;
+    tweets_consumed?: number;
+};
+
+type XUsageDay = {
+    date?: string;
+    usage?: XUsageApp[];
+};
+
+type XUsageData = {
+    cap_reset_day?: number;
+    daily_client_app_usage?: XUsageDay[];
+    daily_project_usage?: XUsageDay[] | { usage?: XUsageApp[] };
+    project_cap?: number;
+    project_id?: string;
+    project_usage?: number;
+};
+
+type XUsageResponse = {
+    data: XUsageData | null;
+    fetched_at: string;
+    source: string;
+};
+
 type Props = {
     workspace_options: WorkspaceOption[];
     platforms: PlatformOption[];
@@ -105,6 +132,30 @@ export function usageQuery(workspace: string | null, platform: string | null) {
     };
 }
 
+export function xUsageTotal(data: XUsageData | null) {
+    if (!data) {
+        return 0;
+    }
+
+    if (typeof data.project_usage === 'number') {
+        return data.project_usage;
+    }
+
+    const dailyUsage = Array.isArray(data.daily_project_usage)
+        ? data.daily_project_usage
+        : [];
+
+    return dailyUsage.reduce(
+        (total, day) =>
+            total +
+            (day.usage ?? []).reduce(
+                (dayTotal, app) => dayTotal + (app.tweets_consumed ?? 0),
+                0,
+            ),
+        0,
+    );
+}
+
 export default function InstanceUsage({
     workspace_options,
     platforms,
@@ -116,6 +167,10 @@ export default function InstanceUsage({
     counters,
     error_events,
 }: Props) {
+    const xUsageHttp = useHttp<Record<string, never>, XUsageResponse>({});
+    const [xUsage, setXUsage] = useState<XUsageResponse | null>(null);
+    const [xUsageError, setXUsageError] = useState<string | null>(null);
+
     function updateFilters(next: Partial<Props['filters']>) {
         const workspace = Object.hasOwn(next, 'workspace')
             ? next.workspace
@@ -134,6 +189,21 @@ export default function InstanceUsage({
                 preserveState: true,
             },
         );
+    }
+
+    function fetchXUsage() {
+        setXUsageError(null);
+
+        void xUsageHttp.get(InstanceSettingsController.xUsage().url, {
+            onSuccess: (response) => {
+                setXUsage(response);
+            },
+            onError: (errors) => {
+                setXUsageError(
+                    Object.values(errors)[0] ?? 'Unable to fetch X API usage.',
+                );
+            },
+        });
     }
 
     return (
@@ -220,6 +290,78 @@ export default function InstanceUsage({
                         </Select>
                     </div>
                 </div>
+
+                <section className="rounded-md border p-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                            <h2 className="text-sm font-medium">X API usage</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Fetch daily Post consumption from the X Usage
+                                API for the configured developer app.
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={xUsageHttp.processing}
+                            onClick={fetchXUsage}
+                        >
+                            {xUsageHttp.processing
+                                ? 'Fetching…'
+                                : 'Fetch X usage'}
+                        </Button>
+                    </div>
+
+                    {xUsageError && (
+                        <p className="mt-4 text-sm text-destructive">
+                            {xUsageError}
+                        </p>
+                    )}
+
+                    {xUsage && (
+                        <div className="mt-4 space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                <UsageStat
+                                    label="Posts consumed"
+                                    value={xUsageTotal(
+                                        xUsage.data,
+                                    ).toLocaleString()}
+                                />
+                                <UsageStat
+                                    label="Monthly cap"
+                                    value={
+                                        xUsage.data?.project_cap?.toLocaleString() ??
+                                        '—'
+                                    }
+                                />
+                                <UsageStat
+                                    label="Cap reset"
+                                    value={
+                                        typeof xUsage.data?.cap_reset_day ===
+                                        'number'
+                                            ? `${xUsage.data.cap_reset_day} days`
+                                            : '—'
+                                    }
+                                />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Fetched {formatDate(xUsage.fetched_at)} from{' '}
+                                <a
+                                    href={xUsage.source}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline underline-offset-4"
+                                >
+                                    {xUsage.source}
+                                </a>
+                                .
+                            </p>
+                            <pre className="max-h-72 overflow-auto rounded-md bg-muted p-3 text-xs">
+                                {JSON.stringify(xUsage.data, null, 2)}
+                            </pre>
+                        </div>
+                    )}
+                </section>
 
                 <UsageTable
                     title="Workspace comparison"
@@ -413,6 +555,15 @@ function UsageTable({
                 </Table>
             </div>
         </section>
+    );
+}
+
+function UsageStat({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-md border bg-muted/30 p-3">
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="mt-1 text-lg font-semibold">{value}</div>
+        </div>
     );
 }
 

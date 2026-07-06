@@ -26,14 +26,14 @@ class BillingController extends Controller
 
         $subscribed = $workspace->subscribed('default');
         $subscriptionGate = app(WorkspaceSubscriptionGate::class);
-        $remaining = $subscriptionGate->remainingXPosts($workspace);
+        $remainingBudget = $subscriptionGate->remainingXBudgetMicrousd($workspace);
 
         return Inertia::render('settings/workspace/subscription', [
             'subscribed' => $subscribed,
             'monthlyPrice' => (int) config('subscriptions.monthly_price_cents'),
-            'monthlyXPostLimit' => $subscriptionGate->monthlyXPostLimit(),
-            'monthlyXPostUsed' => $subscriptionGate->currentXPostUsage($workspace),
-            'monthlyXPostRemaining' => $remaining === PHP_INT_MAX ? null : $remaining,
+            'monthlyXBudgetMicrousd' => $subscriptionGate->monthlyXBudgetMicrousd(),
+            'monthlyXBudgetUsedMicrousd' => $subscriptionGate->currentXCostMicrousd($workspace),
+            'monthlyXBudgetRemainingMicrousd' => $remainingBudget === PHP_INT_MAX ? null : $remainingBudget,
             'canManageSubscription' => $subscribed,
             'canAccessPortal' => $workspace->hasStripeId(),
         ]);

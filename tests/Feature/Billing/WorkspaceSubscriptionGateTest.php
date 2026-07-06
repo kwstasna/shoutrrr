@@ -42,6 +42,7 @@ function recordXPosts(Workspace $workspace, int $count = 1, mixed $occurredAt = 
 {
     $now = Date::now();
     $occurredAt ??= $now;
+    $costMicrousd = 15_000;
 
     UsageEvent::factory()->count($count)->create([
         'workspace_id' => $workspace->id,
@@ -49,6 +50,7 @@ function recordXPosts(Workspace $workspace, int $count = 1, mixed $occurredAt = 
         'platform' => Platform::X->value,
         'operation' => UsageOperation::POST,
         'quota_weight' => 1,
+        'cost_weight_microusd' => $costMicrousd,
         'succeeded' => true,
         'occurred_at' => $occurredAt,
     ]);
@@ -68,6 +70,7 @@ function recordXPosts(Workspace $workspace, int $count = 1, mixed $occurredAt = 
 
     $counter->increment('event_count', $count);
     $counter->increment('total_quota', $count);
+    $counter->increment('total_cost_microusd', $count * $costMicrousd);
 }
 
 test('publishing is free and unlimited when self hosted mode disables billing', function () {
@@ -124,6 +127,45 @@ test('x publishing quota is five dollars worth of monthly requests', function ()
     recordXPosts($workspace);
 
     expect($gate->remainingXPosts($workspace))->toBe(0)
+        ->and($gate->canPublishX($workspace))->toBeFalse();
+
+    Date::setTestNow();
+});
+
+test('x publishing stops when cumulative x cost reaches the monthly budget', function () {
+    Date::setTestNow('2026-06-15 12:00:00');
+    $workspace = subscribedWorkspace();
+
+    UsageEvent::factory()->create([
+        'workspace_id' => $workspace->id,
+        'category' => UsageCategory::ExternalApi->value,
+        'platform' => Platform::X->value,
+        'operation' => UsageOperation::MEDIA_UPLOAD,
+        'quota_weight' => 1,
+        'cost_weight_microusd' => 4_990_000,
+        'succeeded' => true,
+        'occurred_at' => Date::now(),
+    ]);
+
+    $gate = app(WorkspaceSubscriptionGate::class);
+
+    expect($gate->currentXPostUsage($workspace))->toBe(0)
+        ->and($gate->currentXCostMicrousd($workspace))->toBe(4_990_000)
+        ->and($gate->remainingXBudgetMicrousd($workspace))->toBe(10_000)
+        ->and($gate->canPublishX($workspace))->toBeFalse();
+
+    UsageEvent::factory()->create([
+        'workspace_id' => $workspace->id,
+        'category' => UsageCategory::Publish->value,
+        'platform' => Platform::X->value,
+        'operation' => UsageOperation::POST,
+        'quota_weight' => 1,
+        'cost_weight_microusd' => 15_000,
+        'succeeded' => true,
+        'occurred_at' => Date::now(),
+    ]);
+
+    expect($gate->remainingXBudgetMicrousd($workspace))->toBe(0)
         ->and($gate->canPublishX($workspace))->toBeFalse();
 
     Date::setTestNow();

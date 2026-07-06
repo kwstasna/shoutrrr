@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Support;
 
 class UsagePricing
@@ -29,5 +31,16 @@ class UsagePricing
             'unit_cost_usd' => $unitCost,
             'estimated_cost_usd' => round($quota * $unitCost, 6),
         ];
+    }
+
+    public function costWeightMicrousd(string $platform, string $operation, int $quota): int
+    {
+        $estimate = $this->estimate($platform, $operation, $quota);
+
+        if ($estimate === null) {
+            return 0;
+        }
+
+        return (int) round($estimate['estimated_cost_usd'] * 1_000_000);
     }
 }

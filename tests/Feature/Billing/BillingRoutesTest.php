@@ -77,7 +77,7 @@ test('billing page does not show portal management for a customer without a subs
             ->where('canAccessPortal', true));
 });
 
-test('billing page shows current month x post usage', function () {
+test('billing page shows current month x budget usage', function () {
     Date::setTestNow('2026-06-15 12:00:00');
     config([
         'subscriptions.enabled' => true,
@@ -101,6 +101,7 @@ test('billing page shows current month x post usage', function () {
         'operation' => UsageOperation::POST,
         'event_count' => 12,
         'total_quota' => 12,
+        'total_cost_microusd' => 180_000,
     ]);
     // A prior month must not leak into the current-period count.
     UsagePeriodCounter::factory()->create([
@@ -112,6 +113,7 @@ test('billing page shows current month x post usage', function () {
         'operation' => UsageOperation::POST,
         'event_count' => 99,
         'total_quota' => 99,
+        'total_cost_microusd' => 1_485_000,
     ]);
     $user->forceFill(['current_workspace_id' => $workspace->id])->save();
 
@@ -120,9 +122,9 @@ test('billing page shows current month x post usage', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('settings/workspace/subscription')
-            ->where('monthlyXPostLimit', 333)
-            ->where('monthlyXPostUsed', 12)
-            ->where('monthlyXPostRemaining', 321));
+            ->where('monthlyXBudgetMicrousd', 5_000_000)
+            ->where('monthlyXBudgetUsedMicrousd', 180_000)
+            ->where('monthlyXBudgetRemainingMicrousd', 4_820_000));
 });
 
 test('portal is unavailable for a workspace that never became a stripe customer', function () {

@@ -17,9 +17,11 @@ use App\Support\InstanceSettings;
 use App\Support\UsageOperation;
 use App\Support\UsagePricing;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -254,6 +256,47 @@ class InstanceSettingsController extends Controller
             'summaries' => $summaries,
             'counters' => $counters,
             'error_events' => $errorEvents,
+        ]);
+    }
+
+    public function xUsage(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        abort_unless($user?->isInstanceOwner(), 403);
+
+        $validated = $request->validate([
+            'days' => ['sometimes', 'integer', 'min:1', 'max:90'],
+        ]);
+
+        $bearerToken = (string) config('services.x.bearer_token', '');
+
+        if ($bearerToken === '') {
+            return response()->json([
+                'message' => 'Configure X_BEARER_TOKEN before fetching X API usage.',
+            ], 422);
+        }
+
+        $response = Http::withToken($bearerToken)
+            ->acceptJson()
+            ->timeout(10)
+            ->get('https://api.x.com/2/usage/tweets', [
+                'days' => (int) ($validated['days'] ?? 7),
+                'usage.fields' => 'cap_reset_day,daily_client_app_usage,daily_project_usage,project_cap,project_id,project_usage',
+            ]);
+
+        if ($response->failed()) {
+            return response()->json([
+                'message' => 'Unable to fetch X API usage.',
+                'status' => $response->status(),
+                'error' => $response->json() ?? $response->body(),
+            ], 502);
+        }
+
+        return response()->json([
+            'data' => $response->json('data'),
+            'fetched_at' => Date::now()->toIso8601String(),
+            'source' => 'https://api.x.com/2/usage/tweets',
         ]);
     }
 

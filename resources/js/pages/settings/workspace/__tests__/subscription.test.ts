@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { remainingXPostLabel } from '../subscription';
+import { remainingXBudgetLabel } from '../subscription';
 
 const source = () =>
     readFileSync(
@@ -49,22 +49,33 @@ describe('subscription checkout forms', () => {
         expect(subscriptionPage).toContain('name="_token"');
     });
 
-    it('renders current month X post usage and unlimited non-X publishing copy', () => {
+    it('adds workspace subscription breadcrumbs to the app header', () => {
         const subscriptionPage = source();
 
-        expect(subscriptionPage).toContain('X posts this month');
-        expect(subscriptionPage).toContain('monthlyXPostUsed');
-        expect(subscriptionPage).toContain('monthlyXPostRemaining');
+        expect(subscriptionPage).toContain('Subscription.layout');
+        expect(subscriptionPage).toContain("title: 'Workspace settings'");
+        expect(subscriptionPage).toContain(
+            'WorkspaceSettingsController.showOverview().url',
+        );
+        expect(subscriptionPage).toContain("title: 'Subscription'");
+        expect(subscriptionPage).toContain('BillingController.index().url');
+    });
+
+    it('renders current month X budget usage and unlimited non-X publishing copy', () => {
+        const subscriptionPage = source();
+
+        expect(subscriptionPage).toContain('X budget this month');
+        expect(subscriptionPage).toContain('monthlyXBudgetUsedMicrousd');
+        expect(subscriptionPage).toContain('monthlyXBudgetRemainingMicrousd');
         expect(subscriptionPage).toContain('unlimited publishes to');
         expect(subscriptionPage).toContain('every other platform');
         expect(subscriptionPage).toContain('X/Twitter');
-        expect(subscriptionPage).toContain('publish requests each month');
+        expect(subscriptionPage).toContain('usage budget');
     });
 
-    it('labels remaining X posts as unlimited when the plan has no monthly limit', () => {
-        expect(remainingXPostLabel(null, 10)).toBe('Unlimited remaining');
-        expect(remainingXPostLabel(null, null)).toBe('Unlimited remaining');
-        expect(remainingXPostLabel(100, null)).toBe('Unlimited remaining');
-        expect(remainingXPostLabel(100, 25)).toBe('25 remaining');
+    it('labels remaining X budget as dollars', () => {
+        expect(remainingXBudgetLabel(null)).toBe('Unlimited remaining');
+        expect(remainingXBudgetLabel(4_820_000)).toBe('$4.82 remaining');
+        expect(remainingXBudgetLabel(15_000)).toBe('$0.015 remaining');
     });
 });

@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 
 import BillingController from '@/actions/App/Http/Controllers/BillingController';
+import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 import Heading from '@/components/common/heading';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +15,8 @@ import {
 const usd = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
 });
 
 function csrfToken(): string {
@@ -30,38 +33,43 @@ function csrfToken(): string {
 type Props = {
     subscribed: boolean;
     monthlyPrice: number;
-    monthlyXPostLimit: number | null;
-    monthlyXPostUsed: number;
-    monthlyXPostRemaining: number | null;
+    monthlyXBudgetMicrousd: number;
+    monthlyXBudgetUsedMicrousd: number;
+    monthlyXBudgetRemainingMicrousd: number | null;
     canManageSubscription: boolean;
     canAccessPortal: boolean;
 };
 
-export function remainingXPostLabel(
-    monthlyXPostLimit: number | null,
-    monthlyXPostRemaining: number | null,
+function formatMicrousd(value: number): string {
+    return usd.format(value / 1_000_000);
+}
+
+export function remainingXBudgetLabel(
+    monthlyXBudgetRemainingMicrousd: number | null,
 ): string {
-    return monthlyXPostLimit === null || monthlyXPostRemaining === null
+    return monthlyXBudgetRemainingMicrousd === null
         ? 'Unlimited remaining'
-        : `${monthlyXPostRemaining} remaining`;
+        : `${formatMicrousd(monthlyXBudgetRemainingMicrousd)} remaining`;
 }
 
 export default function Subscription({
     subscribed,
     monthlyPrice,
-    monthlyXPostLimit,
-    monthlyXPostUsed,
-    monthlyXPostRemaining,
+    monthlyXBudgetMicrousd,
+    monthlyXBudgetUsedMicrousd,
+    monthlyXBudgetRemainingMicrousd,
     canManageSubscription,
     canAccessPortal,
 }: Props) {
     const monthlyUsagePercent =
-        monthlyXPostLimit !== null && monthlyXPostLimit > 0
-            ? Math.min(100, (monthlyXPostUsed / monthlyXPostLimit) * 100)
+        monthlyXBudgetMicrousd > 0
+            ? Math.min(
+                  100,
+                  (monthlyXBudgetUsedMicrousd / monthlyXBudgetMicrousd) * 100,
+              )
             : 0;
-    const remainingLabel = remainingXPostLabel(
-        monthlyXPostLimit,
-        monthlyXPostRemaining,
+    const remainingLabel = remainingXBudgetLabel(
+        monthlyXBudgetRemainingMicrousd,
     );
 
     return (
@@ -94,9 +102,9 @@ export default function Subscription({
                             </div>
                             <p className="text-sm text-muted-foreground">
                                 Includes unlimited seats, unlimited publishes to
-                                every other platform, and{' '}
-                                {monthlyXPostLimit ?? 'unlimited'} X/Twitter
-                                publish requests each month.
+                                every other platform, and a{' '}
+                                {formatMicrousd(monthlyXBudgetMicrousd)}
+                                /month X/Twitter usage budget.
                             </p>
                         </div>
 
@@ -111,7 +119,7 @@ export default function Subscription({
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <h2 className="text-sm font-medium">
-                                        X posts this month
+                                        X budget this month
                                     </h2>
                                     <p className="text-sm text-muted-foreground">
                                         {remainingLabel}
@@ -119,11 +127,14 @@ export default function Subscription({
                                 </div>
                                 <div className="text-right text-sm">
                                     <span className="text-2xl font-semibold text-foreground">
-                                        {monthlyXPostUsed}
+                                        {formatMicrousd(
+                                            monthlyXBudgetUsedMicrousd,
+                                        )}
                                     </span>
                                     <span className="text-muted-foreground">
                                         {' '}
-                                        / {monthlyXPostLimit ?? '∞'}
+                                        /{' '}
+                                        {formatMicrousd(monthlyXBudgetMicrousd)}
                                     </span>
                                 </div>
                             </div>
@@ -189,3 +200,16 @@ export default function Subscription({
         </>
     );
 }
+
+Subscription.layout = {
+    breadcrumbs: [
+        {
+            title: 'Workspace settings',
+            href: WorkspaceSettingsController.showOverview().url,
+        },
+        {
+            title: 'Subscription',
+            href: BillingController.index().url,
+        },
+    ],
+};
