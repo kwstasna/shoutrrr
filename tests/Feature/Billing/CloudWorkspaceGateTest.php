@@ -118,3 +118,35 @@ test('subscribed additional cloud workspaces can publish', function () {
 
     $this->postJson("/posts/{$post->id}/publish")->assertOk();
 });
+
+test('additional cloud workspaces must subscribe before queueing', function () {
+    Workspace::factory()->create();
+    $workspace = Workspace::factory()->create();
+    actingInWorkspace($workspace);
+
+    $post = Post::factory()->create([
+        'workspace_id' => $workspace->id,
+        'author_id' => auth()->id(),
+        'status' => PostStatus::Draft,
+    ]);
+
+    $this->postJson("/posts/{$post->id}/queue")
+        ->assertPaymentRequired()
+        ->assertJsonPath('message', 'Subscribe to publish this post.');
+});
+
+test('additional cloud workspaces must subscribe before scheduling', function () {
+    Workspace::factory()->create();
+    $workspace = Workspace::factory()->create();
+    actingInWorkspace($workspace);
+
+    $post = Post::factory()->create([
+        'workspace_id' => $workspace->id,
+        'author_id' => auth()->id(),
+        'status' => PostStatus::Draft,
+    ]);
+
+    $this->putJson("/posts/{$post->id}/schedule", ['scheduled_at' => '2030-01-01T09:00:00+00:00'])
+        ->assertPaymentRequired()
+        ->assertJsonPath('message', 'Subscribe to publish this post.');
+});

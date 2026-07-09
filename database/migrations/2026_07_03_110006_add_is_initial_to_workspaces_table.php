@@ -25,12 +25,30 @@ return new class extends Migration
         if ($firstWorkspaceId !== null) {
             DB::table('workspaces')->where('id', $firstWorkspaceId)->update(['is_initial' => true]);
         }
+
+        if ($this->supportsPartialIndexes()) {
+            DB::statement('CREATE UNIQUE INDEX workspaces_single_initial ON workspaces (is_initial) WHERE is_initial');
+        }
     }
 
     public function down(): void
     {
+        if ($this->supportsPartialIndexes()) {
+            DB::statement('DROP INDEX IF EXISTS workspaces_single_initial');
+        }
+
         Schema::table('workspaces', function (Blueprint $table): void {
             $table->dropColumn('is_initial');
         });
+    }
+
+    /**
+     * Only the drivers this application actually runs on (SQLite locally and in
+     * CI, PostgreSQL in Docker) support partial indexes. MySQL and MariaDB do
+     * not, so the invariant stays application-enforced there.
+     */
+    private function supportsPartialIndexes(): bool
+    {
+        return in_array(DB::connection()->getDriverName(), ['pgsql', 'sqlite'], true);
     }
 };

@@ -69,37 +69,12 @@ class PostTargetReply extends Model
 
     use HasWorkspaceScope;
 
-    protected static function booted(): void
+    /**
+     * The conversation root a direct child of this reply belongs to.
+     */
+    public function conversationRemoteIdForChild(): string
     {
-        static::saving(function (PostTargetReply $reply): void {
-            if ($reply->conversation_remote_id !== null && ! $reply->isDirty('parent_remote_id')) {
-                return;
-            }
-
-            $reply->conversation_remote_id = $reply->resolveConversationRemoteId();
-        });
-    }
-
-    private function resolveConversationRemoteId(): string
-    {
-        $targetRemoteId = PostTarget::withoutGlobalScopes()
-            ->whereKey($this->post_target_id)
-            ->value('remote_id');
-
-        if ($this->parent_remote_id === null || $this->parent_remote_id === $targetRemoteId) {
-            return $this->remote_reply_id;
-        }
-
-        $parent = self::withoutGlobalScopes()
-            ->where('post_target_id', $this->post_target_id)
-            ->where('remote_reply_id', $this->parent_remote_id)
-            ->first(['id', 'remote_reply_id', 'conversation_remote_id']);
-
-        if ($parent === null) {
-            return $this->remote_reply_id;
-        }
-
-        return $parent->conversation_remote_id ?? $parent->remote_reply_id;
+        return $this->conversation_remote_id ?? $this->remote_reply_id;
     }
 
     /**

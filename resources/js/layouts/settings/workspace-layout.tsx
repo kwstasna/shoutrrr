@@ -16,9 +16,13 @@ export default function WorkspaceSettingsLayout({
 }: PropsWithChildren) {
     const { isCurrentOrParentUrl, isCurrentUrl } = useCurrentUrl();
     const { features, workspaces } = usePage().props;
-    const canManageWorkspaceSettings = (
-        workspaces.current?.permissions ?? []
-    ).includes('workspace.settings.manage');
+    const workspacePermissions = workspaces.current?.permissions ?? [];
+    const canManageWorkspaceSettings = workspacePermissions.includes(
+        'workspace.settings.manage',
+    );
+    const canManageBilling = workspacePermissions.includes(
+        'workspace.billing.manage',
+    );
 
     const sidebarNavItems: NavItem[] = [
         {
@@ -40,7 +44,7 @@ export default function WorkspaceSettingsLayout({
                   },
               ]
             : []),
-        ...(features?.billing
+        ...(features?.billing && canManageBilling
             ? [
                   {
                       title: 'Subscription',

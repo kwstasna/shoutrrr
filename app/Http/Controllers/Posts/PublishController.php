@@ -7,8 +7,6 @@ namespace App\Http\Controllers\Posts;
 use App\Enums\PostStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Post;
-use App\Models\User;
-use App\Models\Workspace;
 use App\Services\Billing\WorkspaceSubscriptionGate;
 use App\Services\Publishing\PublishDispatcher;
 use App\Support\PostView;
@@ -21,11 +19,9 @@ class PublishController extends Controller
     {
         abort_unless($request->user()->can('update', $post), 403);
 
-        /** @var User $user */
-        $user = $request->user();
-        $workspace = $user->currentWorkspace;
+        $workspace = $post->workspace()->firstOrFail();
 
-        if ($workspace instanceof Workspace && ! $subscriptions->canPublish($workspace)) {
+        if (! $subscriptions->canPublish($workspace)) {
             return response()->json([
                 'message' => 'Subscribe to publish this post.',
                 'billing_url' => route('billing.index'),

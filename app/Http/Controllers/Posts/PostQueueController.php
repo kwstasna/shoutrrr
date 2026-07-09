@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Posts;
 use App\Enums\PostStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Post;
-use App\Models\User;
 use App\Services\Billing\WorkspaceSubscriptionGate;
 use App\Services\Posts\NextSlotResolver;
 use App\Support\PostView;
@@ -21,12 +20,9 @@ class PostQueueController extends Controller
 
     public function store(Request $request, Post $post, WorkspaceSubscriptionGate $subscriptions): JsonResponse
     {
-        /** @var User $user */
-        $user = $request->user();
-        abort_unless($user->can('update', $post), 403);
+        abort_unless($request->user()->can('update', $post), 403);
 
-        $workspace = $user->currentWorkspace;
-        abort_if($workspace === null, 404);
+        $workspace = $post->workspace()->firstOrFail();
 
         if (! $subscriptions->canPublish($workspace)) {
             return response()->json([

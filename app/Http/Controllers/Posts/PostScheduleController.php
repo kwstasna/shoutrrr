@@ -8,7 +8,6 @@ use App\Enums\PostStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Post\SchedulePostRequest;
 use App\Models\Post;
-use App\Models\User;
 use App\Services\Billing\WorkspaceSubscriptionGate;
 use App\Support\PostView;
 use Illuminate\Http\JsonResponse;
@@ -18,9 +17,7 @@ class PostScheduleController extends Controller
 {
     public function update(SchedulePostRequest $request, Post $post, WorkspaceSubscriptionGate $subscriptions): JsonResponse|RedirectResponse
     {
-        /** @var User $user */
-        $user = $request->user();
-        $workspace = $user->currentWorkspace;
+        $workspace = $post->workspace()->firstOrFail();
 
         if ($request->validated('scheduled_at') !== null && ! $subscriptions->canPublish($workspace)) {
             if ($request->headers->has('X-Inertia')) {

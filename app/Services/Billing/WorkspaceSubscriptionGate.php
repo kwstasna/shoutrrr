@@ -14,6 +14,14 @@ use Illuminate\Support\Facades\Date;
 
 class WorkspaceSubscriptionGate
 {
+    /**
+     * Operations that count as an X publish. XConnector meters URL-bearing
+     * tweets under a pricier operation, so both must count toward the quota.
+     *
+     * @var list<string>
+     */
+    private const array X_PUBLISH_OPERATIONS = [UsageOperation::POST, UsageOperation::POST_WITH_URL];
+
     public function __construct(
         private readonly UsageMeter $usageMeter,
         private readonly UsagePricing $pricing,
@@ -94,6 +102,11 @@ class WorkspaceSubscriptionGate
         return max(0, $this->monthlyXBudgetMicrousd() - $this->currentXCostMicrousd($workspace));
     }
 
+    /**
+     * Total X API spend in the current billing period across every metered
+     * operation (publishes, media uploads, reply sends, metrics fetches), not
+     * only publishes: every X call bills against the same monthly budget.
+     */
     public function currentXCostMicrousd(Workspace $workspace): int
     {
         $periodStart = $this->billingPeriodStart($workspace);
@@ -115,11 +128,15 @@ class WorkspaceSubscriptionGate
     {
         $periodStart = $this->billingPeriodStart($workspace);
 
-        if ($periodStart !== null) {
-            return $this->usageMeter->countSince($workspace->id, $periodStart, Platform::X, UsageOperation::POST);
+        $count = 0;
+
+        foreach (self::X_PUBLISH_OPERATIONS as $operation) {
+            $count += $periodStart !== null
+                ? $this->usageMeter->countSince($workspace->id, $periodStart, Platform::X, $operation)
+                : $this->usageMeter->currentPeriodCount($workspace->id, Platform::X, $operation);
         }
 
-        return $this->usageMeter->currentPeriodCount($workspace->id, Platform::X, UsageOperation::POST);
+        return $count;
     }
 
     private function xPostCostMicrousd(): int

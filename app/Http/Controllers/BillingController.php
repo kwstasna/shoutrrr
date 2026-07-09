@@ -24,6 +24,8 @@ class BillingController extends Controller
 
         abort_unless($workspace instanceof Workspace, 404);
 
+        $this->authorizeManageBilling($request, $workspace);
+
         $subscribed = $workspace->subscribed('default');
         $subscriptionGate = app(WorkspaceSubscriptionGate::class);
         $remainingBudget = $subscriptionGate->remainingXBudgetMicrousd($workspace);
@@ -47,6 +49,8 @@ class BillingController extends Controller
         $user = $request->user();
 
         abort_unless($user instanceof User && $workspace instanceof Workspace, 404);
+
+        $this->authorizeManageBilling($request, $workspace);
 
         if ($workspace->subscribed('default')) {
             return back()->with('error', 'This workspace already has an active subscription.');
@@ -108,12 +112,31 @@ class BillingController extends Controller
 
         $workspace = $this->currentWorkspace($request);
 
+        abort_unless($workspace instanceof Workspace, 404);
+
+        $this->authorizeManageBilling($request, $workspace);
+
         // Gate on the Stripe customer, not an active subscription: a past_due or
         // expired customer still needs the portal to fix their payment method and
         // download invoices.
-        abort_unless($workspace instanceof Workspace && $workspace->hasStripeId(), 404);
+        abort_unless($workspace->hasStripeId(), 404);
 
         return $workspace->redirectToBillingPortal(route('billing.index'));
+    }
+
+    /**
+     * Billing exposes the Stripe-hosted portal, which can cancel the subscription,
+     * swap the payment method, and download past invoices. Only owners and admins
+     * may reach any billing action.
+     */
+    private function authorizeManageBilling(Request $request, Workspace $workspace): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user instanceof User && $user->hasAllPermissions(['workspace.billing.manage'], $workspace->id),
+            403,
+        );
     }
 
     private function configuredPriceId(): ?string

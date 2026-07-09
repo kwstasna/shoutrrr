@@ -206,6 +206,7 @@ test('the inbox consolidates replies by base reply thread', function (): void {
         'workspace_id' => $this->workspace->id,
         'remote_reply_id' => 'at://ours-1',
         'parent_remote_id' => $firstBase->remote_reply_id,
+        'conversation_remote_id' => $firstBase->remote_reply_id,
         'author_handle' => 'our.account',
         'text' => 'hello',
         'is_ours' => true,
@@ -216,6 +217,7 @@ test('the inbox consolidates replies by base reply thread', function (): void {
         'workspace_id' => $this->workspace->id,
         'remote_reply_id' => 'at://child-1',
         'parent_remote_id' => $ourReply->remote_reply_id,
+        'conversation_remote_id' => $firstBase->remote_reply_id,
         'author_handle' => 'andras.dev',
         'text' => 'hey',
         'is_ours' => false,
@@ -285,7 +287,7 @@ test('replies from another workspace are not visible', function (): void {
     expect(PostTargetReply::query()->where('text', 'foreign')->exists())->toBeFalse();
 });
 
-test('new replies persist the base reply conversation id', function (): void {
+test('a nested reply is grouped under the conversation of its base reply', function (): void {
     $post = Post::factory()->create(['workspace_id' => $this->workspace->id]);
     $target = PostTarget::factory()->for($post)->create([
         'platform' => Platform::Bluesky,
@@ -296,16 +298,28 @@ test('new replies persist the base reply conversation id', function (): void {
         'workspace_id' => $this->workspace->id,
         'remote_reply_id' => 'at://base',
         'parent_remote_id' => 'at://root-post',
+        'text' => 'base reply',
         'is_ours' => false,
+        'remote_created_at' => now()->subMinutes(5),
     ]);
 
-    $child = PostTargetReply::factory()->for($target, 'target')->create([
+    PostTargetReply::factory()->for($target, 'target')->create([
         'workspace_id' => $this->workspace->id,
         'remote_reply_id' => 'at://child',
         'parent_remote_id' => $base->remote_reply_id,
+        'conversation_remote_id' => $base->remote_reply_id,
+        'text' => 'child reply',
         'is_ours' => false,
+        'remote_created_at' => now()->subMinute(),
     ]);
 
-    expect($base->fresh()->conversation_remote_id)->toBe($base->remote_reply_id)
-        ->and($child->fresh()->conversation_remote_id)->toBe($base->remote_reply_id);
+    $this->actingAs($this->user)
+        ->get(route('engagement.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('replies.data', 1)
+                ->where('replies.data.0.text', 'child reply')
+                ->where('replies.data.0.reply_count', 2)
+                ->where('replies.data.0.conversation_key', $target->id.':at://base')));
 });

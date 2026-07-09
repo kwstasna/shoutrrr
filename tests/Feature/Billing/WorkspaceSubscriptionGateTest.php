@@ -279,6 +279,112 @@ test('x publishing stops before calling the connector when quota is exhausted', 
     Date::setTestNow();
 });
 
+test('x publishing reports a budget failure when the quota still has room', function () {
+    Date::setTestNow('2026-06-15 12:00:00');
+    $workspace = subscribedWorkspace();
+
+    // Non-publish X calls drain the shared monthly API budget without using any
+    // of the 333 post quota, so the failure must name the budget, not the quota.
+    UsageEvent::factory()->create([
+        'workspace_id' => $workspace->id,
+        'category' => UsageCategory::ExternalApi->value,
+        'platform' => Platform::X->value,
+        'operation' => UsageOperation::MEDIA_UPLOAD,
+        'quota_weight' => 1,
+        'cost_weight_microusd' => 4_990_000,
+        'succeeded' => true,
+        'occurred_at' => Date::now(),
+    ]);
+
+    $post = Post::factory()->create([
+        'workspace_id' => $workspace->id,
+        'status' => PostStatus::Publishing,
+    ]);
+    $account = ConnectedAccount::factory()->create([
+        'workspace_id' => $workspace->id,
+        'platform' => Platform::X->value,
+        'token_expires_at' => now()->addHour(),
+    ]);
+    ConnectedAccountSecret::factory()->create([
+        'connected_account_id' => $account->id,
+        'access_token' => 'tok',
+    ]);
+    $target = PostTarget::factory()->for($post)->create([
+        'connected_account_id' => $account->id,
+        'platform' => Platform::X->value,
+    ]);
+
+    app()->instance(PublishConnectorRegistry::class, new class extends PublishConnectorRegistry
+    {
+        public function for(Platform $platform): PublishConnector
+        {
+            throw new RuntimeException('connector should not be called');
+        }
+    });
+
+    (new PublishPostTarget($target))->handle(
+        app(PublishConnectorRegistry::class),
+        app(TokenManager::class),
+        app(PostStatusRollup::class),
+        app(BackoffSchedule::class),
+        app(WorkspaceSubscriptionGate::class),
+    );
+
+    $target->refresh();
+    expect($target->status)->toBe(PostTargetStatus::Failed)
+        ->and($target->error_kind)->toBe(ErrorKind::BillingRequired)
+        ->and($target->error_message)->toBe('Monthly X API budget exceeded. Upgrade or wait for the next billing period.');
+
+    Date::setTestNow();
+});
+
+test('url bearing tweets count toward the x post quota', function () {
+    Date::setTestNow('2026-06-15 12:00:00');
+    $workspace = subscribedWorkspace();
+
+    recordXPosts($workspace, 2);
+
+    UsageEvent::factory()->count(3)->create([
+        'workspace_id' => $workspace->id,
+        'category' => UsageCategory::Publish->value,
+        'platform' => Platform::X->value,
+        'operation' => UsageOperation::POST_WITH_URL,
+        'quota_weight' => 1,
+        'cost_weight_microusd' => 200_000,
+        'succeeded' => true,
+        'occurred_at' => Date::now(),
+    ]);
+
+    $gate = app(WorkspaceSubscriptionGate::class);
+
+    expect($gate->currentXPostUsage($workspace))->toBe(5)
+        ->and($gate->remainingXPosts($workspace))->toBe(328);
+
+    Date::setTestNow();
+});
+
+test('url bearing tweets count toward the x post quota without a subscription', function () {
+    Date::setTestNow('2026-06-15 12:00:00');
+    $workspace = Workspace::factory()->create();
+    $now = Date::now();
+
+    UsagePeriodCounter::query()->create([
+        'workspace_id' => $workspace->id,
+        'period_start' => $now->copy()->startOfMonth()->toDateString(),
+        'period_end' => $now->copy()->endOfMonth()->toDateString(),
+        'category' => UsageCategory::Publish->value,
+        'platform' => Platform::X->value,
+        'operation' => UsageOperation::POST_WITH_URL,
+        'event_count' => 4,
+        'total_quota' => 4,
+        'total_cost_microusd' => 800_000,
+    ]);
+
+    expect(app(WorkspaceSubscriptionGate::class)->currentXPostUsage($workspace))->toBe(4);
+
+    Date::setTestNow();
+});
+
 test('x quota period is anchored to the subscription date, not the calendar month', function () {
     Date::setTestNow('2026-06-10 12:00:00');
     $workspace = subscribedWorkspace(); // subscription created June 10

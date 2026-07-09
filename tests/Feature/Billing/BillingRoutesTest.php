@@ -178,6 +178,58 @@ test('workspace stripe customer email comes from its owner', function () {
     expect($workspace->stripeEmail())->toBe('test2@example.com');
 });
 
+test('members without the billing permission cannot reach any billing action', function (string $method, string $route) {
+    config(['subscriptions.enabled' => true]);
+    $user = User::factory()->create();
+    $workspace = Workspace::factory()->create([
+        'owner_id' => User::factory()->create()->id,
+        // Present so `portal` would otherwise pass its hasStripeId() gate: this
+        // proves authorization runs before the Stripe customer is handed over.
+        'stripe_id' => 'cus_test_member_denied',
+    ]);
+    WorkspaceMembership::factory()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $user->id,
+        'role' => WorkspaceRole::Member,
+    ]);
+    $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+    $this->actingAs($user)
+        ->{$method}(route($route))
+        ->assertForbidden();
+})->with([
+    'index' => ['get', 'billing.index'],
+    'checkout' => ['post', 'billing.checkout'],
+    'portal' => ['post', 'billing.portal'],
+]);
+
+test('a user with no membership in the current workspace cannot reach billing', function () {
+    config(['subscriptions.enabled' => true]);
+    $user = User::factory()->create();
+    $workspace = Workspace::factory()->create(['owner_id' => User::factory()->create()->id]);
+    $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+    $this->actingAs($user)
+        ->get(route('billing.index'))
+        ->assertForbidden();
+});
+
+test('admins may manage billing', function () {
+    config(['subscriptions.enabled' => true]);
+    $user = User::factory()->create();
+    $workspace = Workspace::factory()->create(['owner_id' => User::factory()->create()->id]);
+    WorkspaceMembership::factory()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $user->id,
+        'role' => WorkspaceRole::Admin,
+    ]);
+    $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+    $this->actingAs($user)
+        ->get(route('billing.index'))
+        ->assertOk();
+});
+
 test('checkout rejects the placeholder stripe price before creating a customer', function () {
     config([
         'subscriptions.enabled' => true,
