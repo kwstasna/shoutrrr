@@ -248,6 +248,11 @@ function EmojiPopover({
                 <PopoverPrimitive.Portal forceMount>
                     <PopoverPrimitive.Content
                         forceMount
+                        // Marks this as a kept-warm (force-mounted) popover so a
+                        // global rule can make Radix's popper wrapper click-through
+                        // while closed — otherwise the invisible wrapper, positioned
+                        // over the composer, swallows clicks. See app.css.
+                        data-keep-warm=""
                         align="end"
                         side="top"
                         sideOffset={8}

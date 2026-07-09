@@ -106,4 +106,25 @@ describe('platform tabs overflow', () => {
         expect(source).toContain('min-w-0 flex-1 basis-0');
         expect(source).toContain('+{overflowAccounts.length} more');
     });
+
+    it('gives each tab row its own overflow-popover state', () => {
+        // The mobile and desktop rows both stay mounted (toggled by CSS), so a
+        // single shared open-state would also open the hidden row's popover,
+        // whose dismissable layer immediately reads the trigger click as an
+        // outside-click and snaps the popover shut. Each row must own its state.
+        const source = readFileSync(
+            resolve(
+                process.cwd(),
+                'resources/js/components/compose/platform-tabs.tsx',
+            ),
+            'utf8',
+        );
+
+        expect(source).toContain(
+            'const [overflowOpen, setOverflowOpen] = useState(false)',
+        );
+        // The parent must not thread a single shared state down into both rows.
+        expect(source).not.toContain('overflowOpen={overflowOpen}');
+        expect(source).not.toContain('setOverflowOpen={setOverflowOpen}');
+    });
 });

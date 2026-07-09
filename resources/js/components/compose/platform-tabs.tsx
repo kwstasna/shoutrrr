@@ -91,8 +91,6 @@ export default function PlatformTabs({
     stateFor,
     hasOverride,
 }: PlatformTabsProps) {
-    const [overflowOpen, setOverflowOpen] = useState(false);
-
     // No accounts → one generic, platform-less tab that edits the base text.
     if (accounts.length === 0) {
         return (
@@ -122,6 +120,11 @@ export default function PlatformTabs({
     const mobileTabs = visiblePlatformTabAccounts(accounts, activeTab, 2);
     const desktopTabs = visiblePlatformTabAccounts(accounts, activeTab);
 
+    // Each row owns its overflow-popover state. The two rows are mutually
+    // exclusive via CSS (`md:hidden` / `hidden md:flex`), but both stay mounted,
+    // so a shared open-state would open the hidden row's popover too — and its
+    // dismissable layer, anchored to a display:none trigger, reads the trigger
+    // click as an outside-click and slams the shared state shut again.
     return (
         <>
             <PlatformTabRow
@@ -129,8 +132,6 @@ export default function PlatformTabs({
                 visibleAccounts={mobileTabs.visibleAccounts}
                 compact
                 overflowAccounts={mobileTabs.overflowAccounts}
-                overflowOpen={overflowOpen}
-                setOverflowOpen={setOverflowOpen}
                 activeTab={activeTab}
                 onChange={onChange}
                 chipFor={chipFor}
@@ -141,8 +142,6 @@ export default function PlatformTabs({
                 className="hidden md:flex"
                 visibleAccounts={desktopTabs.visibleAccounts}
                 overflowAccounts={desktopTabs.overflowAccounts}
-                overflowOpen={overflowOpen}
-                setOverflowOpen={setOverflowOpen}
                 activeTab={activeTab}
                 onChange={onChange}
                 chipFor={chipFor}
@@ -157,8 +156,6 @@ function PlatformTabRow({
     className,
     visibleAccounts,
     overflowAccounts,
-    overflowOpen,
-    setOverflowOpen,
     activeTab,
     onChange,
     chipFor,
@@ -169,8 +166,6 @@ function PlatformTabRow({
     className: string;
     visibleAccounts: Account[];
     overflowAccounts: Account[];
-    overflowOpen: boolean;
-    setOverflowOpen: (open: boolean) => void;
     activeTab: string;
     onChange: (tab: string) => void;
     chipFor: (accountId: string) => string;
@@ -178,6 +173,8 @@ function PlatformTabRow({
     hasOverride: (accountId: string) => boolean;
     compact?: boolean;
 }) {
+    const [overflowOpen, setOverflowOpen] = useState(false);
+
     return (
         <div
             className={cn(
@@ -206,20 +203,27 @@ function PlatformTabRow({
                             type="button"
                             className={cn(
                                 TAB_CLASS,
-                                compact
-                                    ? 'shrink-0 gap-1.5 px-2'
-                                    : 'shrink-0 gap-1.5',
+                                'shrink-0 gap-1.5',
+                                compact && 'px-2',
+                                'data-[state=open]:bg-muted data-[state=open]:text-foreground',
                             )}
                             aria-label={`${overflowAccounts.length} more accounts`}
                         >
                             <span>+{overflowAccounts.length} more</span>
-                            <ChevronDown className="size-3 opacity-70" />
+                            <ChevronDown className="size-3 opacity-70 transition-transform duration-150 group-data-[state=open]/tab:rotate-180" />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent
                         align="start"
-                        className="w-[240px] gap-1 rounded-2xl p-1.5"
+                        sideOffset={6}
+                        className="w-[236px] gap-0.5 rounded-2xl p-1.5"
                     >
+                        <div className="px-2 pt-1 pb-1.5 text-[11px] font-medium tracking-tight text-muted-foreground">
+                            {overflowAccounts.length} more{' '}
+                            {overflowAccounts.length === 1
+                                ? 'account'
+                                : 'accounts'}
+                        </div>
                         {overflowAccounts.map((account) => (
                             <PlatformTabButton
                                 key={account.id}
@@ -266,6 +270,10 @@ function PlatformTabButton({
     const overridden = hasOverride(account.id);
     const brand = PLATFORM_BRAND[account.platform] ?? PLATFORM_FALLBACK;
     const needsAttention = account.status === 'needs_attention';
+    const sectionChip = chipFor(account.id);
+    // The section-count chip only carries meaning past one (a threaded post). In
+    // the overflow menu a lone "1" on every row is just noise, so drop it there.
+    const showChip = !inMenu || sectionChip !== '1';
 
     return (
         <button
@@ -296,7 +304,11 @@ function PlatformTabButton({
                     className={brand.glyph}
                 />
             </span>
-            <span className="min-w-0 truncate">{account.handle}</span>
+            <span
+                className={cn('min-w-0 truncate', inMenu && 'flex-1 text-left')}
+            >
+                {account.handle}
+            </span>
             {overridden && (
                 <span
                     className="size-1.5 shrink-0 rounded-full bg-primary"
@@ -305,9 +317,11 @@ function PlatformTabButton({
                 />
             )}
             {needsAttention && <NeedsAttentionIcon account={account} />}
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                {chipFor(account.id)}
-            </span>
+            {showChip && (
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                    {sectionChip}
+                </span>
+            )}
         </button>
     );
 }
