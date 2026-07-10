@@ -8,7 +8,10 @@ use App\Models\ApiKey;
 use App\Models\User;
 use App\Models\Workspace;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
+use Laravel\Passport\Client;
+use Laravel\Passport\ClientRepository;
 use Laravel\Passport\Passport;
 use Laravel\Passport\Token;
 
@@ -29,6 +32,8 @@ class ApiKeyManager
         }
 
         $scopes = $scope === 'write' ? ['read', 'write'] : ['read'];
+
+        $this->ensurePersonalAccessClientExists();
 
         // The JWT `exp` claim is baked in at mint time from this global, so it
         // must be set to the real per-key lifetime right before createToken().
@@ -59,5 +64,37 @@ class ApiKeyManager
         $apiKey->forceFill(['revoked_at' => now()])->save();
 
         Token::find($apiKey->access_token_id)?->revoke();
+    }
+
+    /**
+     * Passport can only mint personal access tokens when a "personal access"
+     * grant client exists. This app is the sole issuer of such tokens, so we
+     * provision that client lazily on first use rather than seeding it out of
+     * band — keeping the requirement next to its only consumer. Idempotent, and
+     * lock-guarded so concurrent first-time issues don't create duplicates.
+     */
+    private function ensurePersonalAccessClientExists(): void
+    {
+        if ($this->personalAccessClientExists()) {
+            return;
+        }
+
+        Cache::lock('shoutrrr:create-personal-access-client', 10)->block(5, function (): void {
+            if ($this->personalAccessClientExists()) {
+                return;
+            }
+
+            app(ClientRepository::class)->createPersonalAccessGrantClient(
+                config('app.name').' Personal Access Client'
+            );
+        });
+    }
+
+    private function personalAccessClientExists(): bool
+    {
+        return Client::query()
+            ->where('revoked', false)
+            ->get()
+            ->contains(fn (Client $client): bool => $client->hasGrantType('personal_access'));
     }
 }

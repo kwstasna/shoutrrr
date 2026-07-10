@@ -32,6 +32,27 @@ test('issue returns a plaintext token and persists the key row', function () {
     expect(Token::find($apiKey->access_token_id))->not->toBeNull();
 });
 
+test('issue provisions a personal access client when none exists', function () {
+    Client::query()->delete();
+
+    [$apiKey, $plain] = $this->manager->issue($this->workspace, $this->user, 'first key', 'read', null);
+
+    expect($plain)->toBeString()->not->toBeEmpty();
+    expect(Token::find($apiKey->access_token_id))->not->toBeNull();
+    expect(
+        Client::query()->get()->contains(fn (Client $client): bool => $client->hasGrantType('personal_access'))
+    )->toBeTrue();
+});
+
+test('issue reuses an existing personal access client instead of creating another', function () {
+    $before = Client::query()->count();
+
+    $this->manager->issue($this->workspace, $this->user, 'one', 'read', null);
+    $this->manager->issue($this->workspace, $this->user, 'two', 'read', null);
+
+    expect(Client::query()->count())->toBe($before);
+});
+
 test('a read key is granted only the read scope', function () {
     [$apiKey] = $this->manager->issue($this->workspace, $this->user, 'reader', 'read', null);
 

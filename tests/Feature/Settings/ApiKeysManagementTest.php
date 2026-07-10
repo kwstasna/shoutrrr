@@ -10,9 +10,9 @@ beforeEach(function () {
         Artisan::call('passport:keys', ['--no-interaction' => true]);
     }
 
-    // No personal access client is seeded here on purpose: the
-    // create_personal_access_client migration provides it, so this test also
-    // guards that a fresh environment can mint API keys out of the box.
+    // No personal access client is seeded here on purpose: ApiKeyManager
+    // provisions one lazily on first use, so this test also guards that a fresh
+    // environment can mint API keys out of the box.
 });
 
 /**
