@@ -29,7 +29,6 @@ beforeEach(function () {
     config([
         'subscriptions.enabled' => true,
         'subscriptions.monthly_x_budget_cents' => 500,
-        'subscriptions.x_post_cost_cents' => 1.5,
     ]);
 });
 

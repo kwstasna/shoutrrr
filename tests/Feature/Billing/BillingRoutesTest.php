@@ -82,7 +82,6 @@ test('billing page shows current month x budget usage', function () {
     config([
         'subscriptions.enabled' => true,
         'subscriptions.monthly_x_budget_cents' => 500,
-        'subscriptions.x_post_cost_cents' => 1.5,
     ]);
     Workspace::factory()->create();
     $user = User::factory()->create();
