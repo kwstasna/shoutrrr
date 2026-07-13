@@ -25,7 +25,8 @@
         "laravel/passport": "^13.7",
         "laravel/socialite": "^5.27",
         "laravel/tinker": "^3.0",
-        "laravel/wayfinder": "^0.1.14"
+        "laravel/wayfinder": "^0.1.14",
+        "sentry/sentry-laravel": "^4.26"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.5",

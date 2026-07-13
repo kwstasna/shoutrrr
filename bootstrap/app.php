@@ -11,6 +11,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Sentry\Laravel\Integration;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -52,6 +53,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Report unhandled exceptions to Sentry. No-op unless a DSN is set, so
+        // self-hosted instances without Sentry are unaffected.
+        Integration::handles($exceptions);
+
         // Render exceptions as JSON for API paths and for any client that
         // explicitly asks for JSON (e.g. the composer's useHttp XHR autosave).
         // Inertia visits send `Accept: text/html` + `X-Inertia`, so their

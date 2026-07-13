@@ -5,10 +5,12 @@ namespace App\Providers;
 use App\Enums\Platform;
 use App\Listeners\BindWorkspaceToAccessToken;
 use App\Listeners\SetCurrentWorkspaceOnLogin;
+use App\Listeners\SetSentryUserContext;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\Auth\Socialite\ThreadsProvider;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Middleware\TrustProxies;
@@ -103,6 +105,7 @@ class AppServiceProvider extends ServiceProvider
 
         Event::listen(Login::class, SetCurrentWorkspaceOnLogin::class);
         Event::listen(AccessTokenCreated::class, BindWorkspaceToAccessToken::class);
+        Event::listen(Authenticated::class, SetSentryUserContext::class);
 
         Passport::authorizationView(
             /** @param array<string, mixed> $parameters */

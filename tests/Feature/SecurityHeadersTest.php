@@ -67,6 +67,25 @@ test('a vanilla s3 disk with no endpoint falls back to https: so uploads still w
         ->and($csp)->toContain('media-src \'self\' blob: https:');
 });
 
+test('a configured frontend Sentry DSN is allowlisted in connect-src', function () {
+    config(['sentry-browser.dsn' => 'https://public@o123.ingest.sentry.io/456']);
+
+    $csp = $this->get('/login')->headers->get('Content-Security-Policy');
+
+    // The browser SDK POSTs envelopes to the ingest host; only its origin (not
+    // the key/project path) is added to connect-src.
+    expect($csp)->toContain("connect-src 'self' blob: https://o123.ingest.sentry.io")
+        ->and($csp)->not->toContain('public@');
+});
+
+test('connect-src omits Sentry when no frontend DSN is configured', function () {
+    config(['sentry-browser.dsn' => null]);
+
+    $csp = $this->get('/login')->headers->get('Content-Security-Policy');
+
+    expect($csp)->toContain("connect-src 'self' blob:;");
+});
+
 test('the csp nonce is exposed to vite and differs per request', function () {
     $this->get('/login');
     $first = Vite::cspNonce();

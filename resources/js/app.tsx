@@ -4,6 +4,11 @@ import { ConfirmProvider } from '@/components/common/confirm-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
+import { initSentry } from '@/lib/sentry';
+
+// Initialize error/performance monitoring before the app renders so early
+// failures are captured. No-op unless a DSN was injected by the server.
+initSentry();
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import InstanceSettingsLayout from '@/layouts/settings/instance-layout';

@@ -70,7 +70,7 @@ class SecurityHeaders
         // <video> element (media-src). Adding it only when the disk is remote
         // keeps local and public-disk deployments on the tightest policy.
         $storage = $this->storageOrigins();
-        $connect = trim("'self' blob: ".implode(' ', $storage));
+        $connect = trim("'self' blob: ".implode(' ', array_merge($storage, $this->sentryOrigins())));
         $media = trim("'self' blob: ".implode(' ', $storage));
 
         $directives = [
@@ -124,6 +124,20 @@ class SecurityHeaders
         }
 
         return $origins === [] ? ['https:'] : array_values($origins);
+    }
+
+    /**
+     * CSP source origin for the browser Sentry SDK. It POSTs event envelopes to
+     * the ingest host encoded in the frontend DSN, so that origin must be in
+     * connect-src or the browser blocks the reports. Empty when no DSN is set.
+     *
+     * @return list<string>
+     */
+    private function sentryOrigins(): array
+    {
+        $origin = $this->originOf((string) config('sentry-browser.dsn'));
+
+        return $origin === null ? [] : [$origin];
     }
 
     /**
