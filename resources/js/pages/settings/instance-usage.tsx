@@ -173,6 +173,21 @@ export default function InstanceUsage({
     counters,
     error_events,
 }: Props) {
+    const workspaceItems = [
+        { value: allWorkspacesValue, label: 'All workspaces' },
+        ...workspace_options.map((workspace) => ({
+            value: workspace.id,
+            label: workspace.name,
+        })),
+    ];
+    const platformItems = [
+        { value: allPlatformsValue, label: 'All platforms' },
+        ...platforms.map((platform) => ({
+            value: platform.value,
+            label: platform.label,
+        })),
+    ];
+
     const xUsageHttp = useHttp<Record<string, never>, XUsageResponse>({});
     const [xUsage, setXUsage] = useState<XUsageResponse | null>(null);
     const [xUsageError, setXUsageError] = useState<string | null>(null);
@@ -242,6 +257,7 @@ export default function InstanceUsage({
 
                     <div className="grid gap-3 sm:grid-cols-2">
                         <Select
+                            items={workspaceItems}
                             value={filters.workspace ?? allWorkspacesValue}
                             onValueChange={(workspace) =>
                                 updateFilters({
@@ -256,21 +272,19 @@ export default function InstanceUsage({
                                 <SelectValue placeholder="Filter workspace" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value={allWorkspacesValue}>
-                                    All workspaces
-                                </SelectItem>
-                                {workspace_options.map((workspace) => (
+                                {workspaceItems.map((item) => (
                                     <SelectItem
-                                        key={workspace.id}
-                                        value={workspace.id}
+                                        key={item.value}
+                                        value={item.value}
                                     >
-                                        {workspace.name}
+                                        {item.label}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
 
                         <Select
+                            items={platformItems}
                             value={filters.platform ?? allPlatformsValue}
                             onValueChange={(platform) =>
                                 updateFilters({
@@ -285,15 +299,12 @@ export default function InstanceUsage({
                                 <SelectValue placeholder="Filter platform" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value={allPlatformsValue}>
-                                    All platforms
-                                </SelectItem>
-                                {platforms.map((platform) => (
+                                {platformItems.map((item) => (
                                     <SelectItem
-                                        key={platform.value}
-                                        value={platform.value}
+                                        key={item.value}
+                                        value={item.value}
                                     >
-                                        {platform.label}
+                                        {item.label}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
