@@ -38,9 +38,16 @@ return [
             'database' => env('DB_DATABASE', database_path('sqlite/database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
+            // Concurrency defaults so the single SQLite file survives Octane web
+            // workers + queue worker(s) + scheduler writing at once (otherwise a
+            // parallel job reservation throws "database is locked"). WAL lets
+            // readers and a writer run concurrently; busy_timeout makes a writer
+            // wait for the lock (ms) instead of failing immediately; synchronous
+            // NORMAL is the safe, faster pairing with WAL. In-memory test DBs
+            // ignore WAL, so these are no-ops there.
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
+            'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),
+            'synchronous' => env('DB_SYNCHRONOUS', 'NORMAL'),
             'transaction_mode' => 'DEFERRED',
         ],
 
