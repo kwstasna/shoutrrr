@@ -16,13 +16,32 @@ describe('image editor crop controls', () => {
         expect(source).toMatch(
             /const primaryLabel = cropMode\s+\? 'Done cropping'/,
         );
-        expect(source).toContain(
-            'const primaryAction = cropMode ? () => setCropMode(false) : apply;',
+        expect(source).toMatch(
+            /const primaryAction = cropMode\s+\? \(\) => setCropMode\(false\)/,
         );
         expect(source).toContain('{!cropMode && (');
         expect(source).not.toContain(
             "{cropMode ? 'Done cropping' : 'Crop image'}",
         );
+    });
+});
+
+describe('image editor unedited primary action', () => {
+    it('skips re-encoding and drops the redundant skip button when nothing is edited', () => {
+        const source = readFileSync(
+            resolve(
+                process.cwd(),
+                'resources/js/components/compose/image-editor.tsx',
+            ),
+            'utf8',
+        );
+
+        // With no edits the primary button takes the "keep as-is" path (onCancel)
+        // rather than rasterizing the unchanged image.
+        expect(source).toMatch(/const isEdited =\s+altText !==/);
+        expect(source).toMatch(/: isEdited\s+\? apply\s+: onCancel;/);
+        // The separate skip/cancel button only shows once there's something to discard.
+        expect(source).toContain('{isEdited && (');
     });
 });
 

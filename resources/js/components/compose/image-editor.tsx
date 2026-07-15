@@ -250,6 +250,12 @@ export function ImageEditor({
     }
 
     const hasQueue = queue !== undefined && queue.thumbnails.length > 1;
+    // Whether the user actually changed anything. With no edits, applying would
+    // just re-encode the original for no benefit — so the primary button instead
+    // takes the "keep as-is" path and the redundant skip shortcut is dropped.
+    const isEdited =
+        altText !== (initialAltText ?? '') ||
+        JSON.stringify(settings) !== JSON.stringify(initialSettings);
     const cancelLabel =
         variant === 'new' ? 'Continue without editing' : 'Cancel';
     // Closing via X / Escape discards a fresh upload, or just closes a re-edit.
@@ -258,10 +264,22 @@ export function ImageEditor({
         ? 'Done cropping'
         : isSaving
           ? 'Saving…'
-          : hasQueue
-            ? 'Apply & next'
-            : 'Apply';
-    const primaryAction = cropMode ? () => setCropMode(false) : apply;
+          : isEdited
+            ? hasQueue
+                ? 'Apply & next'
+                : 'Apply'
+            : variant === 'new'
+              ? hasQueue
+                  ? 'Upload & next'
+                  : 'Upload'
+              : 'Done';
+    // Unedited: onCancel already implements "keep as-is" (upload the original &
+    // advance for a fresh batch, or just close a re-edit).
+    const primaryAction = cropMode
+        ? () => setCropMode(false)
+        : isEdited
+          ? apply
+          : onCancel;
 
     return (
         <Dialog
@@ -653,13 +671,15 @@ export function ImageEditor({
                         Remove
                     </button>
                     <div className="ml-auto flex items-center gap-2">
-                        <button
-                            type="button"
-                            className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:py-2"
-                            onClick={onCancel}
-                        >
-                            {cancelLabel}
-                        </button>
+                        {isEdited && (
+                            <button
+                                type="button"
+                                className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:py-2"
+                                onClick={onCancel}
+                            >
+                                {cancelLabel}
+                            </button>
+                        )}
                         <button
                             type="button"
                             disabled={isSaving || (!cropMode && !croppedUrl)}
