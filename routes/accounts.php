@@ -58,6 +58,13 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('accounts.meta.callback');
 
+    // The stateless asset-selection screen. `callback` redirects here (PRG) after
+    // consuming the single-use OAuth state, so reloading the selection page never
+    // re-hits the callback with an already-consumed nonce.
+    Route::get('accounts/select/meta', [MetaConnectionController::class, 'select'])
+        ->middleware('throttle:10,1')
+        ->name('accounts.meta.select');
+
     Route::post('accounts/connect/meta', [MetaConnectionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('accounts.meta.store');

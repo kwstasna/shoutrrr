@@ -156,6 +156,33 @@ class MetaConnectionController extends Controller
             'userTokenExpiresAt' => $longLived['expiresAt']?->toIso8601String(),
         ], now()->addMinutes(self::FLOW_TTL_MINUTES));
 
+        // Post/Redirect/Get: the OAuth state was single-use and is now consumed, so
+        // we must not render the selection screen at the callback URL — an Inertia
+        // reload of that URL would re-run this method with a spent nonce and bounce
+        // the user out with "connection expired". Redirect to a stateless route that
+        // renders the screen purely from the cache stash instead.
+        return redirect()->route('accounts.meta.select');
+    }
+
+    /**
+     * The stateless asset-selection screen. Renders the Pages/IG accounts stashed
+     * by `callback` straight from the cache, so it is safe to reload (unlike the
+     * one-time callback URL). Expires back to the accounts index once the stash
+     * is gone.
+     */
+    public function select(Request $request): RedirectResponse|InertiaResponse
+    {
+        $request->user()->can('create', ConnectedAccount::class) ?: abort(403);
+
+        $stash = Cache::get(self::assetsKey((string) $request->user()->id));
+
+        if (! is_array($stash)) {
+            return $this->failed('Your Facebook connection expired before finishing. Please try again.');
+        }
+
+        /** @var array<string, array{pageId: string, pageName: string, pageAccessToken: string, igUserId: ?string, igUsername: ?string, igAvatarUrl: ?string}> $stashedAssets */
+        $stashedAssets = $stash['assets'] ?? [];
+
         return Inertia::render('accounts/connect-meta', [
             'assets' => $this->projectAssets($stashedAssets),
         ]);

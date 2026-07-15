@@ -115,17 +115,46 @@ test('redirect sends the user into the facebook oauth dance now that facebook is
         ->assertRedirect('https://facebook.test/oauth');
 });
 
-test('callback stashes assets server-side and renders a browser-safe projection', function () {
+test('callback stashes assets server-side and redirects to the stateless selection screen', function () {
     [$user] = metaOwnerActingIn();
     fakeFacebookOAuthUser();
     fakeMetaGraphResponses();
     $state = beginMetaOAuth($user->id);
 
+    // Post/Redirect/Get: the callback consumes the single-use state, stashes the
+    // enumerated assets, and redirects to the reload-safe selection route rather
+    // than rendering the page at the one-time callback URL.
     test()->get(route('accounts.meta.callback', ['state' => $state]))
-        // The `accounts/connect-meta` selection screen is a frontend page a
-        // later task builds; the backend contract this test proves (component
-        // name + browser-safe projection shape) doesn't depend on that file
-        // existing yet, so skip Inertia's page-file existence check.
+        ->assertRedirect(route('accounts.meta.select'));
+
+    $stash = Cache::get('meta-oauth:assets:'.$user->id);
+    expect($stash['assets'])->toHaveCount(1)
+        ->and($stash['assets']['PAGE1']['pageAccessToken'])->toBe('PGT1')
+        ->and($stash['assets']['PAGE1']['pageName'])->toBe('My Page');
+
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/oauth/access_token')
+        && $request['fb_exchange_token'] === 'short-token');
+});
+
+test('the selection screen renders a browser-safe projection from the cache stash', function () {
+    [$user] = metaOwnerActingIn();
+
+    stashMetaAssets($user->id, [
+        'PAGE1' => [
+            'pageId' => 'PAGE1',
+            'pageName' => 'My Page',
+            'pageAccessToken' => 'PGT1',
+            'igUserId' => 'IG1',
+            'igUsername' => 'myig',
+            'igAvatarUrl' => 'https://x/a.jpg',
+        ],
+    ]);
+
+    // The `accounts/connect-meta` selection screen is a frontend page; the
+    // backend contract this test proves (component name + browser-safe
+    // projection shape) doesn't depend on that file existing, so skip Inertia's
+    // page-file existence check.
+    test()->get(route('accounts.meta.select'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('accounts/connect-meta', false)
             ->has('assets', 1)
@@ -135,19 +164,20 @@ test('callback stashes assets server-side and renders a browser-safe projection'
             ->where('assets.0.igUserId', 'IG1')
             ->where('assets.0.igUsername', 'myig')
             ->where('assets.0.igAvatarUrl', 'https://x/a.jpg')
-            // Instagram is launched (Task 6), so a Page with a linked IG
-            // Professional account offers both platforms.
+            // A Page with a linked IG Professional account offers both platforms.
             ->where('assets.0.platforms', ['facebook', 'instagram'])
             ->missing('assets.0.pageAccessToken')
         );
+});
 
-    $stash = Cache::get('meta-oauth:assets:'.$user->id);
-    expect($stash['assets'])->toHaveCount(1)
-        ->and($stash['assets']['PAGE1']['pageAccessToken'])->toBe('PGT1')
-        ->and($stash['assets']['PAGE1']['pageName'])->toBe('My Page');
+test('the selection screen is reload-safe and expires cleanly once the stash is gone', function () {
+    metaOwnerActingIn();
 
-    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/oauth/access_token')
-        && $request['fb_exchange_token'] === 'short-token');
+    // No stash (e.g. a reload long after the flow, or a direct hit) redirects
+    // back to the accounts index instead of erroring.
+    test()->get(route('accounts.meta.select'))
+        ->assertRedirect(route('accounts.index'))
+        ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'expired'));
 });
 
 test('callback rejects a missing or unknown state nonce', function () {
