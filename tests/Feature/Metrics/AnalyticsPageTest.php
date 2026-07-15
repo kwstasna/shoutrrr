@@ -3,14 +3,17 @@
 use App\Enums\MetricsStatus;
 use App\Enums\Platform;
 use App\Enums\PostStatus;
+use App\Enums\PostTargetStatus;
 use App\Enums\WorkspaceRole;
 use App\Models\AccountMetric;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostTarget;
+use App\Models\StoryInsight;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
+use App\Services\Metrics\StoryInsightsRecorder;
 use App\Support\InstanceSettings;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Date;
@@ -117,6 +120,38 @@ test('comparison collapses to single ranked list when fewer than 10 eligible pos
             ->where('comparison.top.0.engagement', 30)
             ->where('comparison.top.1.engagement', 20)
             ->where('comparison.top.2.engagement', 10));
+});
+
+test('webhook-recorded story insights surface in the post-engagement comparison', function (): void {
+    $post = Post::factory()->create([
+        'workspace_id' => $this->workspace->id,
+        'author_id' => $this->user->id,
+        'status' => PostStatus::Published->value,
+        'published_at' => now()->subDay(),
+    ]);
+    $target = PostTarget::factory()->story()->create([
+        'post_id' => $post->id,
+        'remote_id' => 'story-analytics-1',
+        'status' => PostTargetStatus::Published->value,
+    ]);
+
+    // Record insights exactly as the webhook path does.
+    app(StoryInsightsRecorder::class)->record($this->workspace->id, [
+        'media_id' => 'story-analytics-1',
+        'reach' => 500,
+        'replies' => 12,
+        'shares' => 4,
+    ]);
+
+    // Persistent snapshot survives independently of the ephemeral story.
+    expect(StoryInsight::where('post_target_id', $target->id)->exists())->toBeTrue();
+
+    $this->actingAs($this->user)
+        ->get(route('analytics.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('comparison.top', 1)
+            ->where('comparison.top.0.engagement', 16)); // 12 replies + 4 shares, 0 likes
 });
 
 test('the follower series is downsampled to one point per day', function (): void {

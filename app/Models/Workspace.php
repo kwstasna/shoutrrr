@@ -213,4 +213,12 @@ class Workspace extends Model
     {
         return $this->hasMany(ConnectedAccount::class);
     }
+
+    /**
+     * @return HasOne<WorkspaceWebhook, $this>
+     */
+    public function webhook(): HasOne
+    {
+        return $this->hasOne(WorkspaceWebhook::class);
+    }
 }

@@ -3,7 +3,7 @@ export type ReplyItem = {
     conversation_key?: string;
     reply_count?: number;
     unread_count?: number;
-    platform: 'x' | 'bluesky' | 'linkedin';
+    platform: 'x' | 'bluesky' | 'linkedin' | 'instagram';
     remote_reply_id: string;
     author_handle: string;
     author_name: string | null;

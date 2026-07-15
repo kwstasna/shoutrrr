@@ -10,10 +10,20 @@ use App\Http\Controllers\Api\V1\PostActionsController;
 use App\Http\Controllers\Api\V1\PostingScheduleController;
 use App\Http\Controllers\Api\V1\PostsController;
 use App\Http\Controllers\Api\V1\SharesController;
+use App\Http\Controllers\Webhooks\MetaWebhookController;
 use App\Http\Middleware\RecordApiUsage;
 use App\Http\Middleware\RequireWriteScope;
 use App\Http\Middleware\ResolveApiWorkspace;
 use Illuminate\Support\Facades\Route;
+
+// Public Meta (Instagram) webhooks, one callback URL per workspace. Unauthenticated
+// and stateless: the {token} path segment resolves the owning workspace, the GET
+// handshake is token-checked and every POST is HMAC-verified inside the controller
+// with that workspace's secret. Lives outside the auth:api group.
+Route::middleware('throttle:meta-webhook')->prefix('webhooks/meta')->group(function (): void {
+    Route::get('{token}', [MetaWebhookController::class, 'verify'])->name('webhooks.meta.verify');
+    Route::post('{token}', [MetaWebhookController::class, 'handle'])->name('webhooks.meta.handle');
+});
 
 Route::middleware(['auth:api', ResolveApiWorkspace::class, 'throttle:api', RecordApiUsage::class])
     ->group(function (): void {

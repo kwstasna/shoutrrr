@@ -236,6 +236,7 @@ export function useAutosave({ state, accountIds, dispatch }: UseAutosave) {
         state.destination,
         state.overrideByAccount,
         state.autoSplitByAccount,
+        state.instagramFormatByAccount,
         state.media,
     ]);
 

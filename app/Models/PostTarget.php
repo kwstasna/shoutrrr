@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\ErrorKind;
 use App\Enums\MetricsStatus;
 use App\Enums\Platform;
+use App\Enums\PostFormat;
 use App\Enums\PostTargetStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\PostTargetFactory;
@@ -24,6 +25,7 @@ use Override;
  * @property string $connected_account_id
  * @property Platform $platform
  * @property list<string> $sections
+ * @property PostFormat $format
  * @property array{text?: string|null, media_ids?: list<string>}|null $content_override
  * @property bool $auto_split
  * @property PostTargetStatus $status
@@ -49,6 +51,7 @@ use Override;
     'connected_account_id',
     'platform',
     'sections',
+    'format',
     'content_override',
     'auto_split',
     'status',
@@ -75,6 +78,14 @@ class PostTarget extends Model
     use HasFactory, HasUuids;
 
     /**
+     * In-memory default so a target created without an explicit format still
+     * resolves to a feed post (Eloquent does not hydrate DB defaults after create).
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = ['format' => 'feed'];
+
+    /**
      * @return array<string, string>
      */
     #[Override]
@@ -84,6 +95,7 @@ class PostTarget extends Model
             'platform' => Platform::class,
             'status' => PostTargetStatus::class,
             'sections' => 'array',
+            'format' => PostFormat::class,
             'content_override' => 'array',
             'auto_split' => 'boolean',
             'remote_ids' => 'array',
@@ -136,5 +148,11 @@ class PostTarget extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(PostTargetReply::class, 'post_target_id');
+    }
+
+    /** @return HasMany<StoryInsight, $this> */
+    public function storyInsights(): HasMany
+    {
+        return $this->hasMany(StoryInsight::class, 'post_target_id')->orderBy('captured_at');
     }
 }

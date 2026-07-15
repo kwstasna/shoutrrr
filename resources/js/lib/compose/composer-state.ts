@@ -22,6 +22,9 @@ export type ScheduleTray = {
     pickedAt: string | null;
 };
 
+/** Instagram publish surface. Non-Instagram targets are always 'feed'. */
+export type InstagramFormat = 'feed' | 'story';
+
 export type ComposerState = {
     postId: string | null;
     activeTab: string;
@@ -31,6 +34,7 @@ export type ComposerState = {
     mentions: MentionPlaceholder[];
     destination: Destination;
     autoSplitByAccount: Record<string, boolean>;
+    instagramFormatByAccount: Record<string, InstagramFormat>;
     overrideByAccount: Record<string, string[] | undefined>;
     mediaSubsetExcludes: Set<string>;
     media: MediaView[];
@@ -48,6 +52,7 @@ export type ComposerAction =
     | { type: 'setDestination'; destination: Destination }
     | { type: 'toggleAutoSplit'; accountId: string }
     | { type: 'disableAutoSplit'; accountIds: string[] }
+    | { type: 'setInstagramFormat'; accountId: string; format: InstagramFormat }
     | { type: 'setOverrideSegments'; accountId: string; segments: string[] }
     | { type: 'discardOverride'; accountId: string }
     | { type: 'toggleMediaExclude'; mediaId: string; accountId: string }
@@ -110,6 +115,7 @@ export function initialComposerState(
         mentions: [],
         destination: initialDestination ?? { kind: 'all' },
         autoSplitByAccount: {},
+        instagramFormatByAccount: {},
         overrideByAccount: {},
         mediaSubsetExcludes: new Set(),
         media: [],
@@ -147,11 +153,15 @@ export function parseDestinationParam(raw: string | null): Destination | null {
 
 function hydrate(post: PostView): ComposerState {
     const autoSplitByAccount: Record<string, boolean> = {};
+    const instagramFormatByAccount: Record<string, InstagramFormat> = {};
     const overrideByAccount: Record<string, string[] | undefined> = {};
     const mediaSubsetExcludes = new Set<string>();
 
     for (const target of post.targets) {
         autoSplitByAccount[target.connected_account_id] = target.auto_split;
+        if (target.format === 'story') {
+            instagramFormatByAccount[target.connected_account_id] = 'story';
+        }
         const overrideSegments = target.content_override?.segments;
         if (overrideSegments !== undefined && overrideSegments !== null) {
             overrideByAccount[target.connected_account_id] = overrideSegments;
@@ -176,6 +186,7 @@ function hydrate(post: PostView): ComposerState {
                     ? { kind: 'accounts', ids: post.destination.ids }
                     : { kind: 'all' },
         autoSplitByAccount,
+        instagramFormatByAccount,
         overrideByAccount,
         mediaSubsetExcludes,
         media: post.media,
@@ -288,6 +299,16 @@ export function composerReducer(
                             false,
                         ]),
                     ),
+                },
+                saveState: 'dirty',
+            };
+
+        case 'setInstagramFormat':
+            return {
+                ...state,
+                instagramFormatByAccount: {
+                    ...state.instagramFormatByAccount,
+                    [action.accountId]: action.format,
                 },
                 saveState: 'dirty',
             };
@@ -434,6 +455,7 @@ export function composerReducer(
 export type PutTarget = {
     connected_account_id: string;
     auto_split: boolean;
+    format: InstagramFormat;
     content_override: { segments: string[]; media_ids: string[] } | null;
 };
 
@@ -476,6 +498,7 @@ export function buildPutBody(
         return {
             connected_account_id: accountId,
             auto_split: state.autoSplitByAccount[accountId] ?? true,
+            format: state.instagramFormatByAccount[accountId] ?? 'feed',
             content_override,
         };
     });

@@ -46,6 +46,7 @@ function hydrated(): ReturnType<typeof composerReducer> {
                 sections: ['hello'],
                 content_override: null,
                 auto_split: true,
+                format: 'feed',
                 issues: [],
                 status: 'pending',
                 error_kind: null,
@@ -63,6 +64,7 @@ function hydrated(): ReturnType<typeof composerReducer> {
                 sections: ['hello'],
                 content_override: null,
                 auto_split: true,
+                format: 'feed',
                 issues: [],
                 status: 'pending',
                 error_kind: null,
@@ -645,9 +647,22 @@ describe('buildPutBody', () => {
         expect(body.targets[0]).toEqual({
             connected_account_id: 'a1',
             auto_split: true,
+            format: 'feed',
             content_override: null,
         });
         expect(body.targets[0].content_override).toBeNull();
+    });
+
+    it('defaults every target to the feed format and flips one to story on demand', () => {
+        const state = composerReducer(hydrated(), {
+            type: 'setInstagramFormat',
+            accountId: 'a1',
+            format: 'story',
+        });
+        const body = buildPutBody(state, ['a1', 'a2']);
+
+        expect(body.targets[0].format).toBe('story');
+        expect(body.targets[1].format).toBe('feed');
     });
 
     it('includes content_override only for overridden accounts and clears the rest', () => {

@@ -7,6 +7,7 @@ use App\Http\Controllers\Settings\InstanceSettingsController;
 use App\Http\Controllers\Settings\NotificationPreferencesController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
+use App\Http\Controllers\Settings\WebhooksController;
 use App\Http\Controllers\Settings\WorkspaceSettingsController;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('settings/workspace/api-keys', [ApiKeysController::class, 'index'])->name('settings.workspace.api-keys');
     Route::post('settings/workspace/api-keys', [ApiKeysController::class, 'store'])->name('settings.workspace.api-keys.store');
     Route::delete('settings/workspace/api-keys/{apiKey}', [ApiKeysController::class, 'destroy'])->name('settings.workspace.api-keys.destroy');
+
+    Route::get('settings/workspace/webhooks', [WebhooksController::class, 'index'])->name('settings.workspace.webhooks');
+    Route::post('settings/workspace/webhooks', [WebhooksController::class, 'store'])->name('settings.workspace.webhooks.store');
+    Route::post('settings/workspace/webhooks/regenerate', [WebhooksController::class, 'regenerate'])->name('settings.workspace.webhooks.regenerate');
+    Route::post('settings/workspace/webhooks/test', [WebhooksController::class, 'test'])->name('settings.workspace.webhooks.test');
+    Route::delete('settings/workspace/webhooks', [WebhooksController::class, 'destroy'])->name('settings.workspace.webhooks.destroy');
 
     Route::get('settings/connections', [ConnectionsController::class, 'edit'])->name('connections.edit');
     Route::delete('settings/connections/{socialAccount}', [ConnectionsController::class, 'destroy'])->name('connections.destroy');

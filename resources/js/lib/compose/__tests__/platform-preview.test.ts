@@ -161,4 +161,38 @@ describe('buildPlatformPreview', () => {
             linkExclusions: ['heyandras.dev'],
         });
     });
+
+    it('defaults the format to feed and shows all attached media', () => {
+        const second: MediaView = { ...image, id: 'media-2' };
+        const preview = buildPlatformPreview({
+            account: account('instagram'),
+            segments: ['a feed post'],
+            mentions: [],
+            media: [image, second],
+            excludedMediaIds: new Set(),
+            limit: 2200,
+            autoSplit: true,
+        });
+
+        expect(preview.format).toBe('feed');
+        expect(preview.items[0].media).toHaveLength(2);
+    });
+
+    it('marks a story preview and keeps only the first attachment', () => {
+        const second: MediaView = { ...image, id: 'media-2' };
+        const preview = buildPlatformPreview({
+            account: account('instagram'),
+            segments: ['ignored on stories'],
+            mentions: [],
+            media: [image, second],
+            excludedMediaIds: new Set(),
+            limit: 2200,
+            autoSplit: true,
+            format: 'story',
+        });
+
+        expect(preview.format).toBe('story');
+        expect(preview.items[0].media).toHaveLength(1);
+        expect(preview.items[0].media[0].id).toBe('media-1');
+    });
 });

@@ -2,6 +2,7 @@
 
 use App\Dto\Post\DraftData;
 use App\Enums\Platform;
+use App\Enums\PostFormat;
 use App\Models\ConnectedAccount;
 use App\Models\PostMedia;
 use App\Models\User;
@@ -39,6 +40,39 @@ test('updateDraft re-splits base text into every target', function () {
 
     expect($updated->base_text)->toBe('brand new body')
         ->and($updated->targets->first()->sections)->toBe(['brand new body']);
+});
+
+test('updateDraft persists the Story format for an Instagram target and defaults others to Feed', function () {
+    $user = User::factory()->create();
+    $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
+    $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+    Context::add('workspace_id', $workspace->id);
+
+    $ig = ConnectedAccount::factory()->create([
+        'workspace_id' => $workspace->id,
+        'platform' => Platform::Instagram->value,
+    ]);
+    $x = ConnectedAccount::factory()->create([
+        'workspace_id' => $workspace->id,
+        'platform' => Platform::X->value,
+    ]);
+    $post = app(DraftService::class)->createDraft($workspace->id, $user, ['kind' => 'all'], ['hi']);
+
+    $data = DraftData::fromArray([
+        'base_text' => 'hi',
+        'destination' => ['kind' => 'all'],
+        'targets' => [
+            ['connected_account_id' => $ig->id, 'auto_split' => true, 'format' => 'story'],
+            // A story flag on a non-Instagram target is ignored (forced to feed).
+            ['connected_account_id' => $x->id, 'auto_split' => true, 'format' => 'story'],
+        ],
+        'expected_updated_at' => $post->updated_at->toIso8601String(),
+    ]);
+
+    $updated = app(DraftService::class)->updateDraft($post, $data);
+
+    expect($updated->targets->firstWhere('connected_account_id', $ig->id)->format)->toBe(PostFormat::Story)
+        ->and($updated->targets->firstWhere('connected_account_id', $x->id)->format)->toBe(PostFormat::Feed);
 });
 
 test('updateDraft applies a per-account override and re-splits only that target', function () {

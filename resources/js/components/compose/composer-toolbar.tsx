@@ -1,5 +1,11 @@
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
-import { Image as ImageIcon, Shuffle, Smile, Split } from 'lucide-react';
+import {
+    CircleDashed,
+    Image as ImageIcon,
+    Shuffle,
+    Smile,
+    Split,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -15,6 +21,10 @@ type Props = {
     activePlatform?: PlatformName;
     autoSplit: boolean;
     overrideActive: boolean;
+    /** Instagram-only: whether the active account publishes to Stories. */
+    instagramStory?: boolean;
+    /** Instagram-only: flip the active account between Feed and Story. */
+    onToggleInstagramStory?: () => void;
     /** When false, hides Override + Auto-split (generic tab has no platform). */
     showSplitControls?: boolean;
     media: MediaView[];
@@ -50,6 +60,8 @@ export function ComposerToolbar({
     activePlatform,
     autoSplit,
     overrideActive,
+    instagramStory = false,
+    onToggleInstagramStory,
     showSplitControls = true,
     media,
     onRemove,
@@ -149,6 +161,23 @@ export function ComposerToolbar({
             />
 
             <div className="ml-auto sm:flex-1" />
+
+            {activePlatform === 'instagram' &&
+                !readOnly &&
+                onToggleInstagramStory && (
+                    <EToolButton
+                        title={
+                            instagramStory
+                                ? 'Publishing as a Story — one photo or video, caption is ignored. Click for a feed post.'
+                                : 'Publish this Instagram post as a Story (one photo or video, no caption)'
+                        }
+                        active={instagramStory}
+                        onClick={onToggleInstagramStory}
+                    >
+                        <CircleDashed className="size-3.5" aria-hidden="true" />
+                        <span>Story</span>
+                    </EToolButton>
+                )}
 
             {showSplitControls && !readOnly && (
                 <>

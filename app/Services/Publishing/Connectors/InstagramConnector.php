@@ -9,6 +9,7 @@ use App\Dto\Publishing\PublishContext;
 use App\Dto\Publishing\PublishResult;
 use App\Enums\ErrorKind;
 use App\Enums\Platform;
+use App\Enums\PostFormat;
 use App\Enums\UsageCategory;
 use App\Models\PostMedia;
 use App\Models\PostTarget;
@@ -30,6 +31,11 @@ use RuntimeException;
  * Instagram has no direct byte-upload API — every container references a public
  * HTTPS URL that Meta fetches server-side (see PublicMediaUrl). Media is required;
  * there is no text-only post type.
+ *
+ * A target whose format is `Story` publishes to the ephemeral Stories surface
+ * instead: a single-media `media_type=STORIES` container with no caption and no
+ * carousel (see the Instagram User Media reference). Everything else — the
+ * container/poll/publish choreography — is identical to a feed post.
  */
 class InstagramConnector implements PublishConnector
 {
@@ -37,6 +43,9 @@ class InstagramConnector implements PublishConnector
 
     /** The pseudo "media id" used to key the top-level (single or carousel-parent) container in MediaUploadState. */
     private const string CONTAINER_KEY = 'container';
+
+    /** Instagram caps Story videos at 60 seconds; longer clips are rejected at publish. */
+    private const int STORY_MAX_VIDEO_SECONDS = 60;
 
     public function __construct(
         private readonly HttpFactory $http,
@@ -67,6 +76,13 @@ class InstagramConnector implements PublishConnector
 
         if ($context->media === []) {
             return PublishResult::failure(ErrorKind::Validation, 'Instagram requires at least one image or video');
+        }
+
+        if ($context->target->format === PostFormat::Story) {
+            $invalid = $this->validateStory($context->media);
+            if ($invalid !== null) {
+                return $invalid;
+            }
         }
 
         $igUserId = (string) $context->account->remote_account_id;
@@ -111,8 +127,30 @@ class InstagramConnector implements PublishConnector
     }
 
     /**
-     * Create (or resume) the container that will be handed to media_publish: a single
-     * image/Reels container, or a CAROUSEL parent referencing per-item child containers.
+     * A Story must reference exactly one photo or video (no carousel), and a Story
+     * video may not exceed 60 seconds. Returns a failure to surface, or null when valid.
+     *
+     * @param  list<PostMedia>  $media
+     */
+    private function validateStory(array $media): ?PublishResult
+    {
+        if (count($media) > 1) {
+            return PublishResult::failure(ErrorKind::Validation, 'Instagram Stories support a single photo or video.');
+        }
+
+        $item = $media[0];
+
+        if ($item->isVideo() && ($item->duration_seconds ?? 0) > self::STORY_MAX_VIDEO_SECONDS) {
+            return PublishResult::failure(ErrorKind::Validation, 'Instagram Story videos must be 60 seconds or shorter.');
+        }
+
+        return null;
+    }
+
+    /**
+     * Create (or resume) the container that will be handed to media_publish: a Story
+     * container, a single image/Reels container, or a CAROUSEL parent referencing
+     * per-item child containers.
      */
     private function resolveContainerId(PublishContext $context, MediaUploadState $state, string $igUserId, string $caption, string $token): string
     {
@@ -122,10 +160,13 @@ class InstagramConnector implements PublishConnector
             return $existing;
         }
 
-        $media = array_slice($context->media, 0, Platform::Instagram->maxMedia());
+        $isStory = $context->target->format === PostFormat::Story;
 
-        $containerId = count($media) === 1
-            ? $this->createSingleContainer($context, $media[0], $igUserId, $caption, $token)
+        // A Story is always single-media; a feed post may fan out to a carousel.
+        $media = array_slice($context->media, 0, $isStory ? 1 : Platform::Instagram->maxMedia());
+
+        $containerId = ($isStory || count($media) === 1)
+            ? $this->createSingleContainer($context, $media[0], $igUserId, $caption, $token, $isStory)
             : $this->createCarouselContainer($context, $state, $media, $igUserId, $caption, $token);
 
         $state->markUploaded(self::CONTAINER_KEY, $containerId);
@@ -134,17 +175,21 @@ class InstagramConnector implements PublishConnector
         return $containerId;
     }
 
-    private function createSingleContainer(PublishContext $context, PostMedia $media, string $igUserId, string $caption, string $token): string
+    private function createSingleContainer(PublishContext $context, PostMedia $media, string $igUserId, string $caption, string $token, bool $isStory = false): string
     {
-        $body = [
-            'caption' => $caption,
-            'access_token' => $token,
-        ];
+        $body = ['access_token' => $token];
 
-        if ($media->isVideo()) {
+        if ($isStory) {
+            // Stories ignore captions and use a dedicated media_type; a video and an
+            // image differ only in which URL field carries the asset.
+            $body['media_type'] = 'STORIES';
+            $body[$media->isVideo() ? 'video_url' : 'image_url'] = $this->publicMediaUrl->for($media);
+        } elseif ($media->isVideo()) {
+            $body['caption'] = $caption;
             $body['media_type'] = 'REELS';
             $body['video_url'] = $this->publicMediaUrl->for($media);
         } else {
+            $body['caption'] = $caption;
             $body['image_url'] = $this->publicMediaUrl->for($media);
         }
 

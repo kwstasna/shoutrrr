@@ -5,6 +5,7 @@ import {
     CreditCard,
     Inbox,
     KeyRound,
+    Webhook,
     ListChecks,
     MessageCircle,
     Pencil,
@@ -86,6 +87,7 @@ const workspaceSettingsIcons: Record<WorkspaceSettingsNavKey, LucideIcon> = {
     overview: Settings,
     members: Users,
     apiKeys: KeyRound,
+    webhooks: Webhook,
     subscription: CreditCard,
 };
 

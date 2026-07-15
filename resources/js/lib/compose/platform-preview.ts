@@ -27,6 +27,8 @@ export type PlatformPreview = {
     avatarUrl: string | null;
     limit: number;
     autoSplit: boolean;
+    /** Instagram publish surface; 'feed' for every other platform/target. */
+    format: 'feed' | 'story';
     items: PlatformPreviewItem[];
 };
 
@@ -38,6 +40,7 @@ type BuildPlatformPreviewInput = {
     excludedMediaIds: Set<string>;
     limit: number;
     autoSplit: boolean;
+    format?: 'feed' | 'story';
 };
 
 export function buildPlatformPreview({
@@ -48,6 +51,7 @@ export function buildPlatformPreview({
     excludedMediaIds,
     limit,
     autoSplit,
+    format = 'feed',
 }: BuildPlatformPreviewInput): PlatformPreview {
     const resolvedSegments = segments.map((segment) =>
         replaceMentionTokens(segment, mentions, account.platform),
@@ -63,7 +67,12 @@ export function buildPlatformPreview({
             : autoSplit
               ? previewSections(resolvedSegments, account.platform, limit)
               : resolvedSegments;
-    const visibleMedia = media.filter((item) => !excludedMediaIds.has(item.id));
+    const filteredMedia = media.filter(
+        (item) => !excludedMediaIds.has(item.id),
+    );
+    // A Story is a single photo or video; only the first attachment is published.
+    const visibleMedia =
+        format === 'story' ? filteredMedia.slice(0, 1) : filteredMedia;
     const linkExclusions =
         account.platform === 'linkedin'
             ? mentions
@@ -79,6 +88,7 @@ export function buildPlatformPreview({
         avatarUrl: account.avatar_url,
         limit,
         autoSplit,
+        format,
         items: sections.map((section, index) => ({
             id: `${account.platform}-preview-${index + 1}`,
             // Show the spacing the platform will actually render; the character

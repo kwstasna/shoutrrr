@@ -6,6 +6,7 @@ namespace App\Services\Posts;
 
 use App\Dto\Post\DraftData;
 use App\Enums\Platform;
+use App\Enums\PostFormat;
 use App\Enums\PostStatus;
 use App\Models\AccountSet;
 use App\Models\ConnectedAccount;
@@ -44,7 +45,7 @@ class DraftService
             ]);
 
             $accountIds = $this->resolveDestinationAccountIds($workspaceId, $destination);
-            $this->syncTargets($post, $accountIds, $segments, [], [], $post->mentions ?? []);
+            $this->syncTargets($post, $accountIds, $segments, [], [], [], $post->mentions ?? []);
 
             return $post->load('targets');
         });
@@ -136,9 +137,10 @@ class DraftService
      * @param  list<string>  $segments
      * @param  array<string, bool>  $autoSplitByAccount
      * @param  array<string, array{segments: list<string>, media_ids: list<string>}|null>  $overrideByAccount
+     * @param  array<string, PostFormat>  $formatByAccount
      * @param  list<array{id: string, label: string, handles: array<string, string>}>  $mentions
      */
-    public function syncTargets(Post $post, array $accountIds, array $segments, array $autoSplitByAccount, array $overrideByAccount, array $mentions = []): void
+    public function syncTargets(Post $post, array $accountIds, array $segments, array $autoSplitByAccount, array $overrideByAccount, array $formatByAccount = [], array $mentions = []): void
     {
         $accounts = ConnectedAccount::withoutGlobalScopes()
             ->whereIn('id', $accountIds)
@@ -161,11 +163,18 @@ class DraftService
             $current = $existing[$accountId] ?? null;
             $currentAutoSplit = $current instanceof PostTarget ? $current->auto_split : null;
             $currentOverride = $current instanceof PostTarget ? $current->content_override : null;
+            $currentFormat = $current instanceof PostTarget ? $current->format : null;
 
             $autoSplit = $autoSplitByAccount[$accountId] ?? $currentAutoSplit ?? true;
             $override = array_key_exists($accountId, $overrideByAccount)
                 ? $overrideByAccount[$accountId]
                 : $currentOverride;
+            // Only Instagram has a non-feed surface today; force every other
+            // platform to Feed so a stray story flag can't reach a connector
+            // that would ignore it anyway.
+            $format = $account->platform === Platform::Instagram
+                ? ($formatByAccount[$accountId] ?? $currentFormat ?? PostFormat::Feed)
+                : PostFormat::Feed;
 
             $effectiveSegments = $override['segments'] ?? $segments;
             $resolvedSegments = array_map(
@@ -184,6 +193,7 @@ class DraftService
                 [
                     'platform' => $account->platform->value,
                     'sections' => $sections,
+                    'format' => $format->value,
                     'content_override' => $override,
                     'auto_split' => $autoSplit,
                 ],
@@ -218,9 +228,13 @@ class DraftService
             // otherwise syncTargets preserves the survivor's existing value.
             $autoSplitByAccount = [];
             $overrideByAccount = [];
+            $formatByAccount = [];
             foreach ($accountIds as $accountId) {
                 if ($data->hasAutoSplitFor($accountId)) {
                     $autoSplitByAccount[$accountId] = $data->autoSplitFor($accountId);
+                }
+                if ($data->hasFormatFor($accountId)) {
+                    $formatByAccount[$accountId] = $data->formatFor($accountId);
                 }
                 if ($data->hasOverrideFor($accountId)) {
                     $overrideByAccount[$accountId] = $data->overrideFor($accountId);
@@ -234,7 +248,7 @@ class DraftService
                 'account_set_id' => $this->scopedAccountSetId($post->workspace_id, $destination),
             ])->save();
 
-            $this->syncTargets($post, $accountIds, $data->segments, $autoSplitByAccount, $overrideByAccount, $post->mentions ?? []);
+            $this->syncTargets($post, $accountIds, $data->segments, $autoSplitByAccount, $overrideByAccount, $formatByAccount, $post->mentions ?? []);
             $this->attachMedia($post, $data->mediaIds);
 
             $post->touch();

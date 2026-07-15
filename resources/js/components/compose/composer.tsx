@@ -739,6 +739,11 @@ export default function Composer({
               ),
               limit: limitForAccount(previewAccount),
               autoSplit: state.autoSplitByAccount[previewAccount.id] ?? true,
+              format:
+                  previewAccount.platform === 'instagram' &&
+                  state.instagramFormatByAccount[previewAccount.id] === 'story'
+                      ? 'story'
+                      : 'feed',
           })
         : buildPlatformPreview({
               account: PREVIEW_FALLBACK_ACCOUNT,
@@ -928,6 +933,26 @@ export default function Composer({
                                 : false
                         }
                         overrideActive={overrideActive}
+                        instagramStory={
+                            activeAccount
+                                ? state.instagramFormatByAccount[
+                                      activeAccount.id
+                                  ] === 'story'
+                                : false
+                        }
+                        onToggleInstagramStory={() =>
+                            activeAccount &&
+                            dispatch({
+                                type: 'setInstagramFormat',
+                                accountId: activeAccount.id,
+                                format:
+                                    state.instagramFormatByAccount[
+                                        activeAccount.id
+                                    ] === 'story'
+                                        ? 'feed'
+                                        : 'story',
+                            })
+                        }
                         showSplitControls={activeAccount !== null}
                         media={state.media}
                         onRemove={(id) =>

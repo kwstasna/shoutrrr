@@ -2,12 +2,14 @@ import type { Link } from '@inertiajs/react';
 
 import BillingController from '@/actions/App/Http/Controllers/BillingController';
 import ApiKeysController from '@/actions/App/Http/Controllers/Settings/ApiKeysController';
+import WebhooksController from '@/actions/App/Http/Controllers/Settings/WebhooksController';
 import WorkspaceSettingsController from '@/actions/App/Http/Controllers/Settings/WorkspaceSettingsController';
 
 export type WorkspaceSettingsNavKey =
     | 'overview'
     | 'members'
     | 'apiKeys'
+    | 'webhooks'
     | 'subscription';
 
 export type WorkspaceSettingsNavItem = {
@@ -44,6 +46,11 @@ export function workspaceSettingsNavItems({
             key: 'apiKeys',
             title: 'API keys',
             href: ApiKeysController.index(),
+        });
+        items.push({
+            key: 'webhooks',
+            title: 'Webhooks',
+            href: WebhooksController.index(),
         });
     }
 

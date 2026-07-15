@@ -115,6 +115,7 @@ export type TargetView = {
     sections: string[];
     content_override: { segments?: string[]; media_ids?: string[] } | null;
     auto_split: boolean;
+    format: 'feed' | 'story';
     issues: string[];
     status: TargetStatus;
     error_kind: string | null;

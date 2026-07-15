@@ -3,6 +3,7 @@
 use App\Dto\Publishing\PublishContext;
 use App\Enums\ErrorKind;
 use App\Enums\Platform;
+use App\Enums\PostFormat;
 use App\Models\ConnectedAccount;
 use App\Models\PostMedia;
 use App\Models\PostTarget;
@@ -188,6 +189,95 @@ test('instagram maps a 401 to AuthExpired', function () {
 
     expect($result->isSuccessful())->toBeFalse()
         ->and($result->errorKind)->toBe(ErrorKind::AuthExpired);
+});
+
+test('instagram publishes an image story with media_type STORIES and no caption', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('media/story.jpg', 'jpg-bytes');
+
+    $media = PostMedia::factory()->create(['disk' => 'public', 'path' => 'media/story.jpg', 'mime' => 'image/jpeg']);
+
+    Http::fake([
+        'https://graph.facebook.com/*/ig123/media' => Http::response(['id' => 'story-container']),
+        'https://graph.facebook.com/*/story-container*' => Http::response(['status_code' => 'FINISHED']),
+        'https://graph.facebook.com/*/ig123/media_publish' => Http::response(['id' => 'story-media']),
+    ]);
+
+    $result = app(InstagramConnector::class)->publish(igContext(
+        ['caption that stories ignore'],
+        [$media],
+        ['format' => PostFormat::Story->value],
+    ));
+
+    expect($result->isSuccessful())->toBeTrue()
+        ->and($result->remoteIds)->toBe(['story-media']);
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/ig123/media')
+        && ! str_contains($request->url(), 'media_publish')
+        && ($request['media_type'] ?? null) === 'STORIES'
+        && str_contains((string) ($request['image_url'] ?? ''), 'story.jpg')
+        && ! isset($request['video_url'])
+        && ! isset($request['caption']));
+});
+
+test('instagram publishes a video story with media_type STORIES and video_url', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('media/story.mp4', 'mp4-bytes');
+
+    $media = PostMedia::factory()->video()->create(['disk' => 'public', 'path' => 'media/story.mp4', 'duration_seconds' => 30]);
+
+    Http::fake([
+        'https://graph.facebook.com/*/ig123/media' => Http::response(['id' => 'story-vid-container']),
+        'https://graph.facebook.com/*/story-vid-container*' => Http::response(['status_code' => 'FINISHED']),
+        'https://graph.facebook.com/*/ig123/media_publish' => Http::response(['id' => 'story-vid-media']),
+    ]);
+
+    $result = app(InstagramConnector::class)->publish(igContext(
+        ['ignored'],
+        [$media],
+        ['format' => PostFormat::Story->value],
+    ));
+
+    expect($result->isSuccessful())->toBeTrue()
+        ->and($result->remoteIds)->toBe(['story-vid-media']);
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/ig123/media')
+        && ! str_contains($request->url(), 'media_publish')
+        && ($request['media_type'] ?? null) === 'STORIES'
+        && str_contains((string) ($request['video_url'] ?? ''), 'story.mp4')
+        && ! isset($request['caption']));
+});
+
+test('instagram rejects a story with more than one media and makes no http calls', function () {
+    Http::fake();
+
+    $result = app(InstagramConnector::class)->publish(igContext(
+        ['hi'],
+        [PostMedia::factory()->create(), PostMedia::factory()->create()],
+        ['format' => PostFormat::Story->value],
+    ));
+
+    expect($result->isSuccessful())->toBeFalse()
+        ->and($result->errorKind)->toBe(ErrorKind::Validation);
+
+    Http::assertNothingSent();
+});
+
+test('instagram rejects a story video longer than 60 seconds', function () {
+    Http::fake();
+
+    $media = PostMedia::factory()->video()->create(['duration_seconds' => 90]);
+
+    $result = app(InstagramConnector::class)->publish(igContext(
+        ['hi'],
+        [$media],
+        ['format' => PostFormat::Story->value],
+    ));
+
+    expect($result->isSuccessful())->toBeFalse()
+        ->and($result->errorKind)->toBe(ErrorKind::Validation);
+
+    Http::assertNothingSent();
 });
 
 test('instagram resume guard returns success without making any http calls', function () {

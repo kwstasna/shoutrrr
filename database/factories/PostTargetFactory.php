@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\ErrorKind;
 use App\Enums\Platform;
+use App\Enums\PostFormat;
 use App\Enums\PostTargetStatus;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
@@ -25,6 +26,7 @@ class PostTargetFactory extends Factory
             'connected_account_id' => ConnectedAccount::factory(),
             'platform' => Platform::X->value,
             'sections' => ['Hello world'],
+            'format' => PostFormat::Feed->value,
             'content_override' => null,
             'auto_split' => true,
             'status' => PostTargetStatus::Pending->value,
@@ -38,6 +40,14 @@ class PostTargetFactory extends Factory
             'error_kind' => ErrorKind::Validation->value,
             'error_message' => 'rejected',
             'attempts' => 1,
+        ]);
+    }
+
+    public function story(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'platform' => Platform::Instagram->value,
+            'format' => PostFormat::Story->value,
         ]);
     }
 

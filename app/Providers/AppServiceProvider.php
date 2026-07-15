@@ -89,6 +89,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn ($request) => Limit::perMinute(60)
             ->by($request->user()?->currentAccessToken()?->oauth_access_token_id ?: $request->ip()));
 
+        // Public, unauthenticated Meta webhook endpoint. Generous enough for Meta's
+        // batched deliveries and retries, capped per-IP so the open endpoint can't
+        // be used to flood the app (forged POSTs are still rejected by signature).
+        RateLimiter::for('meta-webhook', fn ($request) => Limit::perMinute(120)->by($request->ip()));
+
         // Per-platform throttle for outbound metrics-capture jobs so a large
         // account/post list can't trip the platforms' own rate limits.
         foreach (Platform::cases() as $platform) {

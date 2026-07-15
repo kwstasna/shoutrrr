@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Dto\Post;
 
+use App\Enums\PostFormat;
+
 final class DraftData
 {
     /**
@@ -16,7 +18,7 @@ final class DraftData
      * @param  list<string>  $destinationIds
      * @param  list<string>  $mediaIds
      * @param  list<array{id: string, label: string, handles: array<string, string>}>  $mentions
-     * @param  array<string, array{auto_split?: bool, content_override?: array{segments: list<string>, media_ids: list<string>}|null}>  $targetsByAccount
+     * @param  array<string, array{auto_split?: bool, format?: PostFormat, content_override?: array{segments: list<string>, media_ids: list<string>}|null}>  $targetsByAccount
      */
     public function __construct(
         /** @var list<string> */
@@ -42,6 +44,9 @@ final class DraftData
             $entry = [];
             if (array_key_exists('auto_split', $target)) {
                 $entry['auto_split'] = (bool) $target['auto_split'];
+            }
+            if (array_key_exists('format', $target)) {
+                $entry['format'] = PostFormat::tryFrom((string) $target['format']) ?? PostFormat::Feed;
             }
             if (array_key_exists('content_override', $target)) {
                 $entry['content_override'] = self::readOverride($target['content_override']);
@@ -69,6 +74,16 @@ final class DraftData
     public function autoSplitFor(string $accountId): bool
     {
         return $this->targetsByAccount[$accountId]['auto_split'] ?? true;
+    }
+
+    public function hasFormatFor(string $accountId): bool
+    {
+        return array_key_exists('format', $this->targetsByAccount[$accountId] ?? []);
+    }
+
+    public function formatFor(string $accountId): PostFormat
+    {
+        return $this->targetsByAccount[$accountId]['format'] ?? PostFormat::Feed;
     }
 
     public function hasOverrideFor(string $accountId): bool
