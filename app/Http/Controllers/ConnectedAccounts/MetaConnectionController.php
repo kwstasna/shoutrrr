@@ -12,7 +12,9 @@ use App\Services\ConnectedAccounts\AccountConnectionService;
 use App\Services\ConnectedAccounts\Meta\MetaAssetEnumerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -26,14 +28,20 @@ use Throwable;
 /**
  * Runs a single Facebook Login flow shared by every Meta Graph platform
  * (Facebook, Instagram), enumerates the user's Pages/linked IG assets, and
- * lets them pick which assets to connect as which platform. Modeled on
- * BlueskyOAuthController's session-stash-across-redirect approach; Socialite
- * usage mirrors OAuthConnectionController (non-stateless — relies on
- * Socialite's own session-bound state).
+ * lets them pick which assets to connect as which platform.
+ *
+ * The OAuth handshake is deliberately stateless: instead of relying on Socialite's
+ * session-bound `state` (which can be lost across the redirect to Facebook behind a
+ * TLS-terminating proxy / under Octane, yielding InvalidStateException even though
+ * the login session itself is intact), we mint our own single-use, user-bound
+ * `state` nonce in the cache and validate it on return. The enumerated assets are
+ * likewise stashed in the cache between the callback and the "pick account" POST, so
+ * the whole flow is independent of per-request session writes surviving the trip.
  */
 class MetaConnectionController extends Controller
 {
-    private const string SESSION_KEY = 'accounts.meta.connect';
+    /** How long the OAuth handshake + asset selection stay valid, in minutes. */
+    private const int FLOW_TTL_MINUTES = 15;
 
     public function __construct(
         private readonly MetaAssetEnumerator $enumerator,
@@ -46,9 +54,16 @@ class MetaConnectionController extends Controller
 
         $request->user()->can('create', ConnectedAccount::class) ?: abort(403);
 
+        // Mint a single-use state nonce bound to this user and stash it in the cache
+        // (not the session) so the handshake survives the round-trip to Facebook.
+        $state = Str::random(40);
+        Cache::put(self::stateKey($state), (string) $request->user()->id, now()->addMinutes(self::FLOW_TTL_MINUTES));
+
         return $this->driver()
+            ->stateless()
             ->scopes($this->scopes())
             ->redirectUrl(route('accounts.meta.callback'))
+            ->with(['state' => $state])
             ->redirect();
     }
 
@@ -82,8 +97,21 @@ class MetaConnectionController extends Controller
             return $this->failed('You declined to connect your Facebook account.');
         }
 
+        // Validate our own cache-backed state nonce (single-use, bound to this user)
+        // instead of Socialite's session-bound state.
+        $state = (string) $request->query('state', '');
+
+        if ($state === '' || Cache::pull(self::stateKey($state)) !== (string) $request->user()->id) {
+            Log::warning('Meta OAuth state validation failed.', [
+                'has_state' => $state !== '',
+            ]);
+
+            return $this->failed('Your Facebook connection expired before finishing. Please try again.');
+        }
+
         try {
             $oauthUser = $this->driver()
+                ->stateless()
                 ->redirectUrl(route('accounts.meta.callback'))
                 ->user();
         } catch (Throwable $exception) {
@@ -123,10 +151,10 @@ class MetaConnectionController extends Controller
             ];
         }
 
-        $request->session()->put(self::SESSION_KEY, [
+        Cache::put(self::assetsKey((string) $request->user()->id), [
             'assets' => $stashedAssets,
             'userTokenExpiresAt' => $longLived['expiresAt']?->toIso8601String(),
-        ]);
+        ], now()->addMinutes(self::FLOW_TTL_MINUTES));
 
         return Inertia::render('accounts/connect-meta', [
             'assets' => $this->projectAssets($stashedAssets),
@@ -137,7 +165,7 @@ class MetaConnectionController extends Controller
     {
         $request->user()->can('create', ConnectedAccount::class) ?: abort(403);
 
-        $stash = $request->session()->get(self::SESSION_KEY);
+        $stash = Cache::get(self::assetsKey((string) $request->user()->id));
         /** @var array<string, array{pageId: string, pageName: string, pageAccessToken: string, igUserId: ?string, igUsername: ?string, igAvatarUrl: ?string}> $stashedAssets */
         $stashedAssets = is_array($stash) ? ($stash['assets'] ?? []) : [];
 
@@ -173,12 +201,22 @@ class MetaConnectionController extends Controller
             $created++;
         }
 
-        $request->session()->forget(self::SESSION_KEY);
+        Cache::forget(self::assetsKey((string) $request->user()->id));
 
         return redirect()->route('accounts.index')->with(
             'success',
             $created === 1 ? '1 account connected.' : "{$created} accounts connected.",
         );
+    }
+
+    private static function stateKey(string $state): string
+    {
+        return 'meta-oauth:state:'.$state;
+    }
+
+    private static function assetsKey(string $userId): string
+    {
+        return 'meta-oauth:assets:'.$userId;
     }
 
     /**

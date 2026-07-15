@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
 use App\Services\Publishing\PublishConnectorRegistry;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -33,11 +34,11 @@ function facebookOwnerActingIn(): array
 }
 
 test('posting a stashed page selection creates a facebook connected account and secret', function () {
-    facebookOwnerActingIn();
+    [$user] = facebookOwnerActingIn();
 
     expect(Platform::launchedMetaGraphPlatforms())->toBe([Platform::Facebook, Platform::Instagram]);
 
-    test()->withSession(['accounts.meta.connect' => [
+    Cache::put('meta-oauth:assets:'.$user->id, [
         'assets' => [
             'PAGE1' => [
                 'pageId' => 'PAGE1',
@@ -49,7 +50,9 @@ test('posting a stashed page selection creates a facebook connected account and 
             ],
         ],
         'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    ], now()->addMinutes(15));
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'PAGE1', 'platform' => 'facebook'],
         ],
@@ -65,8 +68,8 @@ test('posting a stashed page selection creates a facebook connected account and 
         ->and($account->secret)->not->toBeNull()
         ->and($account->secret->access_token)->toBe('PAGE-TOKEN-1');
 
-    // The session stash is cleared after a successful store.
-    expect(session('accounts.meta.connect'))->toBeNull();
+    // The cache stash is cleared after a successful store.
+    expect(Cache::get('meta-oauth:assets:'.$user->id))->toBeNull();
 });
 
 test('the freshly connected facebook page can publish through the registered connector', function () {

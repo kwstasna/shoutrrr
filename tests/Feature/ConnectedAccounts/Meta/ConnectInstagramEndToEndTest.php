@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
 use App\Services\Publishing\PublishConnectorRegistry;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
@@ -36,11 +37,13 @@ function instagramOwnerActingIn(): array
 }
 
 test('posting a stashed page selection creates an instagram connected account and secret', function () {
-    instagramOwnerActingIn();
+    [$user] = instagramOwnerActingIn();
 
     expect(Platform::launchedMetaGraphPlatforms())->toBe([Platform::Facebook, Platform::Instagram]);
 
-    test()->withSession(['accounts.meta.connect' => [
+    // The connect flow stashes enumerated assets in the cache (not the session) so it
+    // survives the redirect behind a proxy / under Octane.
+    Cache::put('meta-oauth:assets:'.$user->id, [
         'assets' => [
             'PAGE1' => [
                 'pageId' => 'PAGE1',
@@ -52,7 +55,9 @@ test('posting a stashed page selection creates an instagram connected account an
             ],
         ],
         'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    ], now()->addMinutes(15));
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'PAGE1', 'platform' => 'instagram'],
         ],
@@ -71,8 +76,8 @@ test('posting a stashed page selection creates an instagram connected account an
         // Page's token, not an IG-specific one.
         ->and($account->secret->access_token)->toBe('PAGE-TOKEN-1');
 
-    // The session stash is cleared after a successful store.
-    expect(session('accounts.meta.connect'))->toBeNull();
+    // The cache stash is cleared after a successful store.
+    expect(Cache::get('meta-oauth:assets:'.$user->id))->toBeNull();
 });
 
 test('the freshly connected instagram account can publish through the registered connector', function () {

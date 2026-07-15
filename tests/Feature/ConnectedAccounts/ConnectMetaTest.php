@@ -6,6 +6,7 @@ use App\Models\ConnectedAccount;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Socialite\Facades\Socialite;
@@ -33,8 +34,12 @@ function fakeFacebookOAuthUser(string $token = 'short-token'): SocialiteUser
         ->map(['id' => 'fb-user-1', 'name' => 'Ada'])
         ->setToken($token);
 
+    // The Meta flow is stateless (cache-backed state nonce) and passes a custom
+    // `state` via with(); mock every fluent call it makes on both redirect + callback.
     $provider = Mockery::mock(AbstractProvider::class);
+    $provider->shouldReceive('stateless')->andReturnSelf();
     $provider->shouldReceive('scopes')->andReturnSelf();
+    $provider->shouldReceive('with')->andReturnSelf();
     $provider->shouldReceive('redirectUrl')->andReturnSelf();
     $provider->shouldReceive('redirect')->andReturn(redirect('https://facebook.test/oauth'));
     $provider->shouldReceive('user')->andReturn($user);
@@ -42,6 +47,29 @@ function fakeFacebookOAuthUser(string $token = 'short-token'): SocialiteUser
     Socialite::shouldReceive('driver')->with('facebook')->andReturn($provider);
 
     return $user;
+}
+
+/**
+ * Mint a cache-backed OAuth state nonce for the user, as redirect() would, and
+ * return the value to pass back on the callback URL.
+ */
+function beginMetaOAuth(string $userId): string
+{
+    $state = 'test-state-'.$userId;
+    Cache::put('meta-oauth:state:'.$state, $userId, now()->addMinutes(15));
+
+    return $state;
+}
+
+/**
+ * @param  array<string, mixed>  $assets
+ */
+function stashMetaAssets(string $userId, array $assets): void
+{
+    Cache::put('meta-oauth:assets:'.$userId, [
+        'assets' => $assets,
+        'userTokenExpiresAt' => null,
+    ], now()->addMinutes(15));
 }
 
 function fakeMetaGraphResponses(): void
@@ -88,11 +116,12 @@ test('redirect sends the user into the facebook oauth dance now that facebook is
 });
 
 test('callback stashes assets server-side and renders a browser-safe projection', function () {
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
     fakeFacebookOAuthUser();
     fakeMetaGraphResponses();
+    $state = beginMetaOAuth($user->id);
 
-    test()->get(route('accounts.meta.callback'))
+    test()->get(route('accounts.meta.callback', ['state' => $state]))
         // The `accounts/connect-meta` selection screen is a frontend page a
         // later task builds; the backend contract this test proves (component
         // name + browser-safe projection shape) doesn't depend on that file
@@ -112,13 +141,24 @@ test('callback stashes assets server-side and renders a browser-safe projection'
             ->missing('assets.0.pageAccessToken')
         );
 
-    $stash = session('accounts.meta.connect');
+    $stash = Cache::get('meta-oauth:assets:'.$user->id);
     expect($stash['assets'])->toHaveCount(1)
         ->and($stash['assets']['PAGE1']['pageAccessToken'])->toBe('PGT1')
         ->and($stash['assets']['PAGE1']['pageName'])->toBe('My Page');
 
     Http::assertSent(fn ($request): bool => str_contains($request->url(), '/oauth/access_token')
         && $request['fb_exchange_token'] === 'short-token');
+});
+
+test('callback rejects a missing or unknown state nonce', function () {
+    metaOwnerActingIn();
+    fakeFacebookOAuthUser();
+
+    test()->get(route('accounts.meta.callback', ['state' => 'never-issued']))
+        ->assertRedirect(route('accounts.index'))
+        ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'expired'));
+
+    expect(ConnectedAccount::withoutGlobalScopes()->count())->toBe(0);
 });
 
 test('callback surfaces a friendly message when facebook denies the connection', function () {
@@ -132,38 +172,38 @@ test('callback surfaces a friendly message when facebook denies the connection',
 });
 
 test('callback surfaces a friendly message when the graph api fails', function () {
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
     fakeFacebookOAuthUser();
     config()->set('services.facebook.graph_version', 'v25.0');
+    $state = beginMetaOAuth($user->id);
 
     Http::fake([
         '*/oauth/access_token*' => Http::response(['error' => ['message' => 'rate limited']], 429),
     ]);
 
-    test()->get(route('accounts.meta.callback'))
+    test()->get(route('accounts.meta.callback', ['state' => $state]))
         ->assertRedirect(route('accounts.index'))
         ->assertSessionHas('error', fn (string $message): bool => str_contains($message, "couldn't retrieve"));
 
-    expect(session('accounts.meta.connect'))->toBeNull()
+    expect(Cache::get('meta-oauth:assets:'.$user->id))->toBeNull()
         ->and(ConnectedAccount::withoutGlobalScopes()->count())->toBe(0);
 });
 
 test('store rejects instagram for a page with no linked instagram account', function () {
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
 
-    test()->withSession(['accounts.meta.connect' => [
-        'assets' => [
-            'PAGE1' => [
-                'pageId' => 'PAGE1',
-                'pageName' => 'My Page',
-                'pageAccessToken' => 'PGT1',
-                'igUserId' => null,
-                'igUsername' => null,
-                'igAvatarUrl' => null,
-            ],
+    stashMetaAssets($user->id, [
+        'PAGE1' => [
+            'pageId' => 'PAGE1',
+            'pageName' => 'My Page',
+            'pageAccessToken' => 'PGT1',
+            'igUserId' => null,
+            'igUsername' => null,
+            'igAvatarUrl' => null,
         ],
-        'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    ]);
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'PAGE1', 'platform' => 'instagram'],
         ],
@@ -175,21 +215,20 @@ test('store rejects instagram for a page with no linked instagram account', func
 test('store creates a facebook connected account now that facebook is launched', function () {
     expect(Platform::launchedMetaGraphPlatforms())->toBe([Platform::Facebook, Platform::Instagram]);
 
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
 
-    test()->withSession(['accounts.meta.connect' => [
-        'assets' => [
-            'PAGE1' => [
-                'pageId' => 'PAGE1',
-                'pageName' => 'My Page',
-                'pageAccessToken' => 'PGT1',
-                'igUserId' => null,
-                'igUsername' => null,
-                'igAvatarUrl' => null,
-            ],
+    stashMetaAssets($user->id, [
+        'PAGE1' => [
+            'pageId' => 'PAGE1',
+            'pageName' => 'My Page',
+            'pageAccessToken' => 'PGT1',
+            'igUserId' => null,
+            'igUsername' => null,
+            'igAvatarUrl' => null,
         ],
-        'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    ]);
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'PAGE1', 'platform' => 'facebook'],
         ],
@@ -204,21 +243,20 @@ test('store creates a facebook connected account now that facebook is launched',
 test('store creates an instagram connected account now that instagram is launched', function () {
     expect(Platform::launchedMetaGraphPlatforms())->toBe([Platform::Facebook, Platform::Instagram]);
 
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
 
-    test()->withSession(['accounts.meta.connect' => [
-        'assets' => [
-            'PAGE1' => [
-                'pageId' => 'PAGE1',
-                'pageName' => 'My Page',
-                'pageAccessToken' => 'PGT1',
-                'igUserId' => 'IG1',
-                'igUsername' => 'myig',
-                'igAvatarUrl' => null,
-            ],
+    stashMetaAssets($user->id, [
+        'PAGE1' => [
+            'pageId' => 'PAGE1',
+            'pageName' => 'My Page',
+            'pageAccessToken' => 'PGT1',
+            'igUserId' => 'IG1',
+            'igUsername' => 'myig',
+            'igAvatarUrl' => null,
         ],
-        'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    ]);
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'PAGE1', 'platform' => 'instagram'],
         ],
@@ -234,21 +272,20 @@ test('store rejects a threads selection since threads never uses the shared meta
     // Threads connects through the generic single-step OAuthConnectionController
     // (Task 6), not this Facebook-Login Page-selection flow — Threads is never a
     // member of launchedMetaGraphPlatforms(), regardless of its own launch state.
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
 
-    test()->withSession(['accounts.meta.connect' => [
-        'assets' => [
-            'PAGE1' => [
-                'pageId' => 'PAGE1',
-                'pageName' => 'My Page',
-                'pageAccessToken' => 'PGT1',
-                'igUserId' => 'IG1',
-                'igUsername' => 'myig',
-                'igAvatarUrl' => null,
-            ],
+    stashMetaAssets($user->id, [
+        'PAGE1' => [
+            'pageId' => 'PAGE1',
+            'pageName' => 'My Page',
+            'pageAccessToken' => 'PGT1',
+            'igUserId' => 'IG1',
+            'igUsername' => 'myig',
+            'igAvatarUrl' => null,
         ],
-        'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    ]);
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'PAGE1', 'platform' => 'threads'],
         ],
@@ -258,12 +295,11 @@ test('store rejects a threads selection since threads never uses the shared meta
 });
 
 test('store rejects an unknown asset key', function () {
-    metaOwnerActingIn();
+    [$user] = metaOwnerActingIn();
 
-    test()->withSession(['accounts.meta.connect' => [
-        'assets' => [],
-        'userTokenExpiresAt' => null,
-    ]])->post(route('accounts.meta.store'), [
+    stashMetaAssets($user->id, []);
+
+    test()->post(route('accounts.meta.store'), [
         'selected' => [
             ['assetKey' => 'BOGUS', 'platform' => 'facebook'],
         ],
