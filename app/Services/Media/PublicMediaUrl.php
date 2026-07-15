@@ -31,9 +31,26 @@ class PublicMediaUrl
     public function forStoredPath(string $disk, string $path): string
     {
         if (config("filesystems.disks.{$disk}.visibility") === 'public') {
-            return Storage::disk($disk)->url($path);
+            return $this->toAbsolute(Storage::disk($disk)->url($path));
         }
 
         return Storage::disk($disk)->temporaryUrl($path, now()->addHours(6));
+    }
+
+    /**
+     * Meta (Instagram/Threads) fetches the media from its own servers, so a
+     * host-relative public-disk URL like "/storage/…" — which a browser resolves
+     * against the current origin but an external service cannot — is unreachable
+     * and comes back as the opaque "Only photo or video can be accepted as media
+     * type" (Graph 36003). Promote a relative URL to an absolute one rooted at the
+     * app URL; already-absolute URLs (custom disk domain, signed S3) pass through.
+     */
+    private function toAbsolute(string $url): string
+    {
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/'.ltrim($url, '/');
     }
 }

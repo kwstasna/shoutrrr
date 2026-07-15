@@ -4,7 +4,10 @@ use App\Models\PostMedia;
 use App\Services\Media\PublicMediaUrl;
 use Illuminate\Support\Facades\Storage;
 
-it('returns a url containing the path for media on the public disk', function () {
+it('returns an absolute url containing the path for media on the public disk', function () {
+    // The public disk serves host-relative URLs ("/storage/…") for the browser;
+    // Meta fetches server-side and needs an absolute URL rooted at the app URL.
+    config()->set('app.url', 'https://shtr.example.com');
     Storage::fake('public');
     Storage::disk('public')->put('media/ws/pic.jpg', 'contents');
 
@@ -15,7 +18,8 @@ it('returns a url containing the path for media on the public disk', function ()
 
     $url = app(PublicMediaUrl::class)->for($media);
 
-    expect($url)->toContain('media/ws/pic.jpg')
+    expect($url)->toStartWith('https://shtr.example.com/')
+        ->and($url)->toContain('media/ws/pic.jpg')
         ->and($url)->not->toContain('signature=');
 });
 
