@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasWorkspaceScope;
+use App\Support\FileStorage;
 use Database\Factories\PostMediaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @property string $id
@@ -70,10 +70,10 @@ class PostMedia extends Model
     protected static function booted(): void
     {
         static::deleting(function (PostMedia $media): void {
-            Storage::disk($media->disk)->delete($media->path);
+            FileStorage::disk($media->disk)->delete($media->path);
 
             if ($media->source_path !== null) {
-                Storage::disk($media->source_disk ?? $media->disk)->delete($media->source_path);
+                FileStorage::disk($media->source_disk ?? $media->disk)->delete($media->source_path);
             }
         });
     }
@@ -125,11 +125,7 @@ class PostMedia extends Model
      */
     private function resolveUrl(string $disk, string $path): string
     {
-        if (config("filesystems.disks.{$disk}.visibility") === 'public') {
-            return Storage::disk($disk)->url($path);
-        }
-
-        return Storage::disk($disk)->temporaryUrl($path, now()->addHours(6));
+        return FileStorage::url($path, $disk);
     }
 
     /**

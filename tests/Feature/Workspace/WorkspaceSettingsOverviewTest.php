@@ -22,7 +22,8 @@ test('owner can view and update workspace', function () {
 });
 
 test('owner can upload a workspace photo', function () {
-    Storage::fake('public');
+    config(['filesystems.default' => 's3']);
+    Storage::fake('s3');
 
     $workspace = Workspace::factory()->create(['name' => 'Old']);
     $owner = User::factory()->create(['current_workspace_id' => $workspace->id]);
@@ -37,8 +38,8 @@ test('owner can upload a workspace photo', function () {
     $workspace->refresh();
 
     expect($workspace->getRawOriginal('logo'))->toStartWith('workspace-photos/');
-    expect($workspace->logo)->toBe('/storage/'.$workspace->getRawOriginal('logo'));
-    Storage::disk('public')->assertExists($workspace->getRawOriginal('logo'));
+    expect($workspace->logo)->toContain($workspace->getRawOriginal('logo'));
+    Storage::disk('s3')->assertExists($workspace->getRawOriginal('logo'));
 });
 
 test('workspace photo must be an image', function () {

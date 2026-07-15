@@ -5,25 +5,20 @@ declare(strict_types=1);
 namespace App\Services\Media;
 
 use App\Models\PostMedia;
-use Illuminate\Support\Facades\Storage;
+use App\Support\FileStorage;
 
 /**
  * Resolves a publicly reachable HTTPS URL for a stored media file, for
  * platforms (Instagram, Threads) that publish by handing Meta a URL it
  * fetches server-side rather than accepting an uploaded byte stream.
  *
- * Mirrors PostMedia::resolveUrl(): a public-visibility disk already serves
- * plain URLs; a private disk (e.g. a private S3 bucket) needs a signed,
- * expiring URL, given a long TTL here since container processing can be slow.
+ * Uses the shared storage URL resolver: public disks receive plain URLs while
+ * private disks receive signed URLs with enough time for container processing.
  */
 class PublicMediaUrl
 {
     public function for(PostMedia $media): string
     {
-        if (config("filesystems.disks.{$media->disk}.visibility") === 'public') {
-            return Storage::disk($media->disk)->url($media->path);
-        }
-
-        return Storage::disk($media->disk)->temporaryUrl($media->path, now()->addHours(6));
+        return FileStorage::url($media->path, $media->disk);
     }
 }
