@@ -57,10 +57,12 @@ import { ConflictDialog } from './conflict-dialog';
 import DestinationSelector from './destination-selector';
 import EditorBody, { type EditorBodyHandle } from './editor-body';
 import { ImageEditor } from './image-editor';
+import { InstagramFormatToggle } from './instagram-format-toggle';
 import { PlatformPreviewPanel } from './platform-preview-panel';
 import PlatformTabs from './platform-tabs';
 import SaveIndicator from './save-indicator';
 import { ScheduleTray } from './schedule-tray';
+import { StoryComposer } from './story-composer';
 import { SubmitBar } from './submit-bar';
 import { TargetStatusChips } from './target-status-chips';
 import { VideoEditor } from './video-editor';
@@ -541,6 +543,14 @@ export default function Composer({
     const readOnly = post !== null && !postCapabilities(post).canEdit;
 
     const activeAccount = pickActiveAccount(tabAccounts, state.activeTab);
+    const activeIsInstagram = activeAccount?.platform === 'instagram';
+    const activeInstagramFormat: 'feed' | 'story' =
+        activeAccount &&
+        state.instagramFormatByAccount[activeAccount.id] === 'story'
+            ? 'story'
+            : 'feed';
+    const isInstagramStory =
+        activeIsInstagram && activeInstagramFormat === 'story';
     const showConnectAccountPrompt = shouldShowConnectAccountPrompt(
         accounts,
         activeAccount,
@@ -839,82 +849,130 @@ export default function Composer({
                     </div>
                 </div>
 
-                {/* Override banner (inside EditorBody) + editor */}
-                <EditorBody
-                    ref={editorRef}
-                    value={activeSegments}
-                    onChange={handleSegments}
-                    onBlur={flush}
-                    editable={!readOnly}
-                    autoFocus={autoFocusEditor}
-                    onPasteFiles={readOnly ? undefined : handleAddedFiles}
-                    overrideBanner={overrideActive}
-                    activePlatformLabel={activeAccount?.platform ?? null}
-                    onResetOverride={() =>
-                        activeAccount &&
-                        dispatch({
-                            type: 'discardOverride',
-                            accountId: activeAccount.id,
-                        })
-                    }
-                    mentions={state.mentions}
-                    mentionPlatforms={mentionPlatforms}
-                    savedMentions={savedMentions}
-                    onMentionNameChange={renameMention}
-                    onApplySavedMention={applySavedMention}
-                    onSaveMention={saveMention}
-                    saveMentionProcessing={saveMentionHttp.processing}
-                    onMentionsChange={(mentions) =>
-                        dispatch({ type: 'setMentions', mentions })
-                    }
-                    emojiSkinTone={emojiPrefs.skinTone}
-                    onEmojiInsert={emojiPrefs.addRecent}
-                    markerState={
-                        activeAccount
-                            ? {
-                                  platform: activeAccount.platform,
-                                  autoSplit:
-                                      state.autoSplitByAccount[
-                                          activeAccount.id
-                                      ] ?? true,
-                                  limit: limitForAccount(activeAccount),
-                                  threadMax:
-                                      limits.find(
-                                          (l) =>
-                                              l.platform ===
-                                              activeAccount.platform,
-                                      )?.threadMax ?? null,
-                              }
-                            : undefined
-                    }
-                />
-
-                {/* Counter row — or the connect prompt when there are no accounts. */}
-                {activeAccount ? (
-                    <CharCounter
-                        count={measure(
-                            replaceMentionTokens(
-                                activeSegments.join('\n'),
-                                state.mentions,
-                                activeAccount.platform,
-                            ),
-                            activeAccount.platform,
-                        )}
-                        limit={limitForAccount(activeAccount)}
-                        sectionTotal={activeSectionTotal}
-                        state={severityFor(activeAccount.id)}
-                    />
-                ) : showConnectAccountPrompt ? (
-                    <div className="px-4 pb-3.5 sm:px-[26px]">
-                        <Link
-                            href={accountsRoute().url}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-[12px] tracking-[-0.005em] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
-                        >
-                            <Plug className="size-3.5" aria-hidden />
-                            Connect an account to publish
-                        </Link>
+                {/* Instagram Post/Story switch — prominent, right under the
+                tabs, since a Story changes the whole composer (single 9:16
+                media, no caption). Only shown for an Instagram destination. */}
+                {activeIsInstagram && activeAccount && (
+                    <div className="px-4 pt-2 pb-1 sm:px-[26px]">
+                        <InstagramFormatToggle
+                            value={activeInstagramFormat}
+                            disabled={readOnly}
+                            onChange={(format) =>
+                                dispatch({
+                                    type: 'setInstagramFormat',
+                                    accountId: activeAccount.id,
+                                    format,
+                                })
+                            }
+                        />
                     </div>
-                ) : null}
+                )}
+
+                {isInstagramStory ? (
+                    /* Story: show the media itself (or an upload dropzone) in
+                    place of the text editor — no caption box, no thread. */
+                    <StoryComposer
+                        media={state.media}
+                        readOnly={readOnly}
+                        onAddFiles={(files) => {
+                            // A story carries a single item — replace, don't
+                            // append, so picking a new file swaps the preview.
+                            for (const item of state.media) {
+                                dispatch({
+                                    type: 'removeMedia',
+                                    mediaId: item.id,
+                                });
+                            }
+                            void handleAddedFiles(files);
+                        }}
+                        onRemove={(id) =>
+                            dispatch({ type: 'removeMedia', mediaId: id })
+                        }
+                    />
+                ) : (
+                    <>
+                        {/* Override banner (inside EditorBody) + editor */}
+                        <EditorBody
+                            ref={editorRef}
+                            value={activeSegments}
+                            onChange={handleSegments}
+                            onBlur={flush}
+                            editable={!readOnly}
+                            autoFocus={autoFocusEditor}
+                            onPasteFiles={
+                                readOnly ? undefined : handleAddedFiles
+                            }
+                            overrideBanner={overrideActive}
+                            activePlatformLabel={
+                                activeAccount?.platform ?? null
+                            }
+                            onResetOverride={() =>
+                                activeAccount &&
+                                dispatch({
+                                    type: 'discardOverride',
+                                    accountId: activeAccount.id,
+                                })
+                            }
+                            mentions={state.mentions}
+                            mentionPlatforms={mentionPlatforms}
+                            savedMentions={savedMentions}
+                            onMentionNameChange={renameMention}
+                            onApplySavedMention={applySavedMention}
+                            onSaveMention={saveMention}
+                            saveMentionProcessing={saveMentionHttp.processing}
+                            onMentionsChange={(mentions) =>
+                                dispatch({ type: 'setMentions', mentions })
+                            }
+                            emojiSkinTone={emojiPrefs.skinTone}
+                            onEmojiInsert={emojiPrefs.addRecent}
+                            markerState={
+                                activeAccount
+                                    ? {
+                                          platform: activeAccount.platform,
+                                          autoSplit:
+                                              state.autoSplitByAccount[
+                                                  activeAccount.id
+                                              ] ?? true,
+                                          limit: limitForAccount(activeAccount),
+                                          threadMax:
+                                              limits.find(
+                                                  (l) =>
+                                                      l.platform ===
+                                                      activeAccount.platform,
+                                              )?.threadMax ?? null,
+                                      }
+                                    : undefined
+                            }
+                        />
+
+                        {/* Counter row — or the connect prompt when there are no accounts. */}
+                        {activeAccount ? (
+                            <CharCounter
+                                count={measure(
+                                    replaceMentionTokens(
+                                        activeSegments.join('\n'),
+                                        state.mentions,
+                                        activeAccount.platform,
+                                    ),
+                                    activeAccount.platform,
+                                )}
+                                limit={limitForAccount(activeAccount)}
+                                sectionTotal={activeSectionTotal}
+                                state={severityFor(activeAccount.id)}
+                            />
+                        ) : showConnectAccountPrompt ? (
+                            <div className="px-4 pb-3.5 sm:px-[26px]">
+                                <Link
+                                    href={accountsRoute().url}
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-[12px] tracking-[-0.005em] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                                >
+                                    <Plug className="size-3.5" aria-hidden />
+                                    Connect an account to publish
+                                </Link>
+                            </div>
+                        ) : null}
+                    </>
+                )}
 
                 {/* Toolbar — editing controls when editable; just the attached
                 media when read-only (skipped entirely if there's none). */}
@@ -933,26 +991,6 @@ export default function Composer({
                                 : false
                         }
                         overrideActive={overrideActive}
-                        instagramStory={
-                            activeAccount
-                                ? state.instagramFormatByAccount[
-                                      activeAccount.id
-                                  ] === 'story'
-                                : false
-                        }
-                        onToggleInstagramStory={() =>
-                            activeAccount &&
-                            dispatch({
-                                type: 'setInstagramFormat',
-                                accountId: activeAccount.id,
-                                format:
-                                    state.instagramFormatByAccount[
-                                        activeAccount.id
-                                    ] === 'story'
-                                        ? 'feed'
-                                        : 'story',
-                            })
-                        }
                         showSplitControls={activeAccount !== null}
                         media={state.media}
                         onRemove={(id) =>

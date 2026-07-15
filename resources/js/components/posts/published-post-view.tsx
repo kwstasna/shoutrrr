@@ -85,9 +85,42 @@ function resolveMedia(target: TargetView, media: MediaView[]): MediaView[] {
     return media;
 }
 
-function MediaGrid({ media }: { media: MediaView[] }) {
+function MediaGrid({
+    media,
+    isStory = false,
+}: {
+    media: MediaView[];
+    isStory?: boolean;
+}) {
     if (media.length === 0) {
         return null;
+    }
+
+    // A story is a single 9:16 photo/video — render it in a tall, portrait frame
+    // (centered, not full-width) rather than the landscape feed grid, so it reads
+    // like the story it actually is instead of a cropped banner.
+    if (isStory) {
+        const item = media[0];
+
+        return (
+            <div className="mt-3 w-full max-w-[220px]">
+                <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border border-border bg-neutral-900">
+                    {item.kind === 'video' ? (
+                        <video
+                            src={item.url}
+                            className="size-full object-cover"
+                            muted
+                        />
+                    ) : (
+                        <img
+                            src={item.url}
+                            alt={item.alt_text ?? ''}
+                            className="size-full object-cover"
+                        />
+                    )}
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -320,7 +353,10 @@ function PublishedCard({
                                     />
                                 </p>
                                 {index === 0 && cardMedia.length > 0 && (
-                                    <MediaGrid media={cardMedia} />
+                                    <MediaGrid
+                                        media={cardMedia}
+                                        isStory={target.format === 'story'}
+                                    />
                                 )}
                             </div>
                         </article>

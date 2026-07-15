@@ -24,6 +24,13 @@ describe('published post view', () => {
         expect(view).toContain('data="stats"');
     });
 
+    it('renders a published story in a 9:16 portrait frame, not the landscape feed grid', () => {
+        // The story branch of MediaGrid uses a tall portrait aspect and is driven
+        // off the target format, so a story stops rendering as a cropped banner.
+        expect(view).toContain('aspect-[9/16]');
+        expect(view).toContain("isStory={target.format === 'story'}");
+    });
+
     it('replaces the editor with the published view only once a target is live', () => {
         expect(page).toContain('PublishedPostView');
         expect(page).toContain("t.status === 'published'");

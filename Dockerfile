@@ -178,6 +178,10 @@ COPY --chown=www-data:www-data . .
 # Production vendor + built assets on top (so source copies don't clobber them)
 COPY --from=vendor --chown=www-data:www-data /var/www/html/vendor ./vendor
 COPY --from=assets --chown=www-data:www-data /app/public/build ./public/build
+# Self-hosted emojibase data the vite `copy-emoji-data` plugin writes into
+# public/emoji at build time (gitignored, so it must come from the assets stage,
+# not the source COPY above). Frimousse + the shortcode index fetch it at runtime.
+COPY --from=assets --chown=www-data:www-data /app/public/emoji ./public/emoji
 COPY --from=assets --chown=www-data:www-data /app/bootstrap/ssr ./bootstrap/ssr
 # node_modules needed for the SSR runtime when toggled on
 COPY --from=assets --chown=www-data:www-data /app/node_modules ./node_modules
