@@ -220,6 +220,43 @@ test('instagram publishes an image story with media_type STORIES and no caption'
         && ! isset($request['caption']));
 });
 
+test('instagram transcodes a non-jpeg story image to a jpeg url before publishing', function () {
+    Storage::fake('public');
+    // Instagram rejects PNG image containers ("Only photo or video can be accepted
+    // as media type"), so a PNG story must be handed to Meta as a JPEG rendition.
+    $png = imagecreatetruecolor(64, 64);
+    imagefilledrectangle($png, 0, 0, 63, 63, imagecolorallocate($png, 51, 102, 255));
+    ob_start();
+    imagepng($png);
+    Storage::disk('public')->put('media/story.png', (string) ob_get_clean());
+    imagedestroy($png);
+
+    $media = PostMedia::factory()->create(['disk' => 'public', 'path' => 'media/story.png', 'mime' => 'image/png']);
+
+    Http::fake([
+        'https://graph.facebook.com/*/ig123/media' => Http::response(['id' => 'story-container']),
+        'https://graph.facebook.com/*/story-container*' => Http::response(['status_code' => 'FINISHED']),
+        'https://graph.facebook.com/*/ig123/media_publish' => Http::response(['id' => 'story-media']),
+    ]);
+
+    $result = app(InstagramConnector::class)->publish(igContext(
+        ['ignored'],
+        [$media],
+        ['format' => PostFormat::Story->value],
+    ));
+
+    expect($result->isSuccessful())->toBeTrue();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/ig123/media')
+        && ! str_contains($request->url(), 'media_publish')
+        && ($request['media_type'] ?? null) === 'STORIES'
+        && str_contains((string) ($request['image_url'] ?? ''), 'derived/instagram/')
+        && str_ends_with((string) ($request['image_url'] ?? ''), '.jpg')
+        && ! str_contains((string) ($request['image_url'] ?? ''), '.png'));
+
+    Storage::disk('public')->assertExists('derived/instagram/'.$media->id.'.jpg');
+});
+
 test('instagram publishes a video story with media_type STORIES and video_url', function () {
     Storage::fake('public');
     Storage::disk('public')->put('media/story.mp4', 'mp4-bytes');

@@ -20,10 +20,20 @@ class PublicMediaUrl
 {
     public function for(PostMedia $media): string
     {
-        if (config("filesystems.disks.{$media->disk}.visibility") === 'public') {
-            return Storage::disk($media->disk)->url($media->path);
+        return $this->forStoredPath($media->disk, $media->path);
+    }
+
+    /**
+     * Resolve a publicly reachable HTTPS URL for an arbitrary path on a stored
+     * disk — used for derived renditions (e.g. an Instagram-compatible JPEG
+     * transcode) that live alongside the original but aren't their own PostMedia.
+     */
+    public function forStoredPath(string $disk, string $path): string
+    {
+        if (config("filesystems.disks.{$disk}.visibility") === 'public') {
+            return Storage::disk($disk)->url($path);
         }
 
-        return Storage::disk($media->disk)->temporaryUrl($media->path, now()->addHours(6));
+        return Storage::disk($disk)->temporaryUrl($path, now()->addHours(6));
     }
 }

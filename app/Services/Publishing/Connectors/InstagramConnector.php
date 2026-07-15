@@ -13,6 +13,7 @@ use App\Enums\PostFormat;
 use App\Enums\UsageCategory;
 use App\Models\PostMedia;
 use App\Models\PostTarget;
+use App\Services\Media\InstagramImageRendition;
 use App\Services\Media\PublicMediaUrl;
 use App\Services\Publishing\Connectors\Concerns\MapsHttpErrors;
 use App\Services\Publishing\Contracts\PublishConnector;
@@ -50,6 +51,7 @@ class InstagramConnector implements PublishConnector
     public function __construct(
         private readonly HttpFactory $http,
         private readonly PublicMediaUrl $publicMediaUrl,
+        private readonly InstagramImageRendition $imageRendition,
     ) {}
 
     private function apiVersion(): string
@@ -183,14 +185,18 @@ class InstagramConnector implements PublishConnector
             // Stories ignore captions and use a dedicated media_type; a video and an
             // image differ only in which URL field carries the asset.
             $body['media_type'] = 'STORIES';
-            $body[$media->isVideo() ? 'video_url' : 'image_url'] = $this->publicMediaUrl->for($media);
+            if ($media->isVideo()) {
+                $body['video_url'] = $this->publicMediaUrl->for($media);
+            } else {
+                $body['image_url'] = $this->imageRendition->urlFor($media);
+            }
         } elseif ($media->isVideo()) {
             $body['caption'] = $caption;
             $body['media_type'] = 'REELS';
             $body['video_url'] = $this->publicMediaUrl->for($media);
         } else {
             $body['caption'] = $caption;
-            $body['image_url'] = $this->publicMediaUrl->for($media);
+            $body['image_url'] = $this->imageRendition->urlFor($media);
         }
 
         $response = $this->http->asForm()->post($this->baseUrl().'/'.$igUserId.'/media', $body);
@@ -248,7 +254,12 @@ class InstagramConnector implements PublishConnector
             'is_carousel_item' => 'true',
             'access_token' => $token,
         ];
-        $body[$media->isVideo() ? 'video_url' : 'image_url'] = $this->publicMediaUrl->for($media);
+
+        if ($media->isVideo()) {
+            $body['video_url'] = $this->publicMediaUrl->for($media);
+        } else {
+            $body['image_url'] = $this->imageRendition->urlFor($media);
+        }
 
         $response = $this->http->asForm()->post($this->baseUrl().'/'.$igUserId.'/media', $body);
 
