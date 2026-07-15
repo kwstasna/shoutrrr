@@ -43,6 +43,18 @@ function igEvent(string $field, array $value): array
     ];
 }
 
+function igMessaging(array $messaging): array
+{
+    return [
+        'object' => 'instagram',
+        'entry' => [[
+            'id' => 'ig-user-1',
+            'time' => 1_700_000_000,
+            'messaging' => [$messaging],
+        ]],
+    ];
+}
+
 function storyTargetFor(Workspace $workspace, string $mediaId): PostTarget
 {
     $post = Post::factory()->create(['workspace_id' => $workspace->id]);
@@ -151,6 +163,81 @@ test('a comment redelivery is idempotent on (post_target_id, remote_reply_id)', 
     metaPost($this->webhook, $event)->assertOk();
 
     expect(PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'dup-1')->count())->toBe(1);
+});
+
+test('a signed story reply (messaging DM) lands in the Engagement inbox against its story', function () {
+    $target = storyTargetFor($this->workspace, 'story-media-reply');
+
+    metaPost($this->webhook, igMessaging([
+        'sender' => ['id' => 'igsid-123'],
+        'recipient' => ['id' => 'ig-user-1'],
+        'timestamp' => 1_700_000_000_000,
+        'message' => [
+            'mid' => 'mid-abc',
+            'text' => 'this story is fire',
+            'reply_to' => ['story' => ['id' => 'story-media-reply', 'url' => 'https://x/s.jpg']],
+        ],
+    ]))->assertOk();
+
+    $reply = PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'mid-abc')->first();
+    expect($reply)->not->toBeNull()
+        ->and($reply->post_target_id)->toBe($target->id)
+        ->and($reply->workspace_id)->toBe($this->workspace->id)
+        ->and($reply->text)->toBe('this story is fire')
+        ->and($reply->parent_remote_id)->toBe('story-media-reply')
+        ->and($reply->author_handle)->toBe('ig:igsid-123')
+        ->and($reply->status)->toBe(ReplyStatus::Pending)
+        ->and($reply->is_ours)->toBeFalse();
+
+    $this->webhook->refresh();
+    expect($this->webhook->last_event)->toBe('messages');
+});
+
+test('a plain DM with no story context is acknowledged but not recorded', function () {
+    storyTargetFor($this->workspace, 'story-media-plain');
+
+    metaPost($this->webhook, igMessaging([
+        'sender' => ['id' => 'igsid-9'],
+        'recipient' => ['id' => 'ig-user-1'],
+        'timestamp' => 1_700_000_000_000,
+        'message' => ['mid' => 'mid-plain', 'text' => 'just a DM'],
+    ]))->assertOk();
+
+    expect(PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'mid-plain')->exists())->toBeFalse();
+});
+
+test('an echo of our own story reply is ignored', function () {
+    storyTargetFor($this->workspace, 'story-echo');
+
+    metaPost($this->webhook, igMessaging([
+        'sender' => ['id' => 'ig-user-1'],
+        'message' => [
+            'mid' => 'mid-echo',
+            'is_echo' => true,
+            'text' => 'our reply',
+            'reply_to' => ['story' => ['id' => 'story-echo']],
+        ],
+    ]))->assertOk();
+
+    expect(PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'mid-echo')->exists())->toBeFalse();
+});
+
+test('a story reply redelivery is idempotent on (post_target_id, remote_reply_id)', function () {
+    storyTargetFor($this->workspace, 'story-dup');
+
+    $event = igMessaging([
+        'sender' => ['id' => 'igsid-1'],
+        'message' => [
+            'mid' => 'mid-dup',
+            'text' => 'nice',
+            'reply_to' => ['story' => ['id' => 'story-dup']],
+        ],
+    ]);
+
+    metaPost($this->webhook, $event)->assertOk();
+    metaPost($this->webhook, $event)->assertOk();
+
+    expect(PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'mid-dup')->count())->toBe(1);
 });
 
 test('a wrongly-signed event is rejected and records nothing', function () {

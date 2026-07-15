@@ -37,9 +37,10 @@ it to `FINISHED`, then calls `media_publish` — the same two-step flow as feed 
 
 ## Webhooks
 
-Meta pushes **story insights** (final metrics, sent within 24 h before a story
-expires) and **comments** to a callback URL. Shoutrrr exposes one callback URL per
-workspace so a single instance can route deliveries to the right tenant.
+Meta pushes **story insights** (final metrics, sent when a story expires, within
+24 h), **comments**, and **story replies** (delivered as Direct Messages) to a
+callback URL. Shoutrrr exposes one callback URL per workspace so a single instance
+can route deliveries to the right tenant.
 
 ### 1. Create the webhook in Shoutrrr
 
@@ -58,15 +59,23 @@ reachable and the signature verifies end-to-end.
 2. Paste the **Callback URL** and **Verify token**, then **Verify and save**. Meta
    sends a `GET` with `hub.mode`, `hub.verify_token` and `hub.challenge`; Shoutrrr
    echoes the challenge when the token matches.
-3. Subscribe to the **`story_insights`** and **`comments`** fields.
+3. Subscribe to the **`story_insights`**, **`comments`**, and **`messages`** fields
+   (`messages` carries story replies).
 
 ### 3. Subscribe each Instagram account
 
-Webhook fields are delivered only for accounts subscribed to your app:
+Configuring the callback URL and fields above is necessary but **not sufficient** —
+Instagram only delivers an account's events once its linked Facebook Page is
+subscribed to the app on the Page node:
 
 ```
-POST /<IG_USER_ID>/subscribed_apps?subscribed_fields=story_insights,comments&access_token=<PAGE_TOKEN>
+POST /<PAGE_ID>/subscribed_apps?subscribed_fields=comments,story_insights,messages&access_token=<PAGE_TOKEN>
 ```
+
+Shoutrrr does this for you: **every Instagram account is subscribed automatically
+when you connect it.** For accounts connected before you set up webhooks (or after a
+token refresh), use **Workspace settings → Webhooks → Subscribe accounts** to
+re-wire every connected Instagram account in one click.
 
 ### Security
 
@@ -91,6 +100,10 @@ secret are encrypted at rest.
 - **Comments** → the **Engagement** inbox, deduplicated on
   `(post_target_id, remote_reply_id)` so a comment that also arrives via polling
   never doubles up.
+- **Story replies** → the **Engagement** inbox too. A reply is a Direct Message
+  carrying a `reply_to.story` context; Shoutrrr matches that story back to its post
+  target and stores the reply on the same `(post_target_id, remote_reply_id)`
+  contract as comments. Plain DMs (no story context) are acknowledged and ignored.
 
 ## Environment
 
@@ -103,4 +116,5 @@ FACEBOOK_GRAPH_VERSION=v25.0
 Required OAuth scopes already requested at connect time include
 `instagram_content_publish` (publishing) and `instagram_manage_insights`
 (story insights). To subscribe pages programmatically you additionally need
-`pages_manage_metadata`.
+`pages_manage_metadata`, and to receive story replies (`messages`) the app needs
+`instagram_manage_messages`.

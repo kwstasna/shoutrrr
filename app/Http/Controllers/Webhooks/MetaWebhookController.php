@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\RecordInstagramComment;
+use App\Jobs\RecordInstagramStoryReply;
 use App\Jobs\RecordStoryInsights;
 use App\Models\WorkspaceWebhook;
 use App\Services\Webhooks\MetaWebhookSignature;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Receives Meta (Instagram Graph API) webhook events on a per-workspace callback
@@ -20,8 +22,9 @@ use Illuminate\Support\Facades\Date;
  * a single instance behind one Meta app routes every delivery to the right tenant
  * and verifies it with that workspace's own token/secret.
  *
- * Wired fields: `story_insights` (persistent story analytics) and `comments` (the
- * Engagement inbox). Any other field is acknowledged with 200 and ignored.
+ * Wired fields: `story_insights` (persistent story analytics), `comments` and story
+ * replies via `messaging` (both feed the Engagement inbox). Any other field is
+ * acknowledged with 200 and ignored.
  */
 class MetaWebhookController extends Controller
 {
@@ -53,21 +56,27 @@ class MetaWebhookController extends Controller
     {
         $webhook = $this->resolveWebhook($token);
 
-        abort_unless(
-            MetaWebhookSignature::verify(
-                $request->getContent(),
-                $request->header('X-Hub-Signature-256'),
-                $webhook->effectiveSigningSecret(),
-            ),
-            403,
-            'Invalid webhook signature.',
-        );
+        if (! MetaWebhookSignature::verify(
+            $request->getContent(),
+            $request->header('X-Hub-Signature-256'),
+            $webhook->effectiveSigningSecret(),
+        )) {
+            Log::warning('Meta webhook rejected: invalid signature.', [
+                'workspace_id' => $webhook->workspace_id,
+                'has_signature' => $request->header('X-Hub-Signature-256') !== null,
+            ]);
+
+            abort(403, 'Invalid webhook signature.');
+        }
 
         $payload = $request->json()->all();
+        $object = $payload['object'] ?? null;
+        $handled = [];
         $lastField = null;
 
-        if (($payload['object'] ?? null) === 'instagram') {
+        if ($object === 'instagram') {
             foreach ($payload['entry'] ?? [] as $entry) {
+                // Field changes: aggregate story metrics and feed/Reel comments.
                 foreach ($entry['changes'] ?? [] as $change) {
                     $field = $change['field'] ?? null;
                     $value = $change['value'] ?? null;
@@ -78,14 +87,34 @@ class MetaWebhookController extends Controller
 
                     if ($field === 'story_insights') {
                         RecordStoryInsights::dispatch($webhook->workspace_id, $value);
+                        $handled[] = $field;
                         $lastField = $field;
                     } elseif ($field === 'comments') {
                         RecordInstagramComment::dispatch($webhook->workspace_id, $value);
+                        $handled[] = $field;
                         $lastField = $field;
                     }
                 }
+
+                // Messaging events: a story reply arrives as a Direct Message (the
+                // recorder ignores plain DMs that aren't story replies).
+                foreach ($entry['messaging'] ?? [] as $messaging) {
+                    if (! is_array($messaging)) {
+                        continue;
+                    }
+
+                    RecordInstagramStoryReply::dispatch($webhook->workspace_id, $messaging);
+                    $handled[] = 'messages';
+                    $lastField = 'messages';
+                }
             }
         }
+
+        Log::info('Meta webhook received.', [
+            'workspace_id' => $webhook->workspace_id,
+            'object' => $object,
+            'fields' => array_values(array_unique($handled)),
+        ]);
 
         $this->recordDelivery($webhook, $lastField);
 

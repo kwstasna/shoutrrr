@@ -39,6 +39,10 @@ function instagramOwnerActingIn(): array
 test('posting a stashed page selection creates an instagram connected account and secret', function () {
     [$user] = instagramOwnerActingIn();
 
+    // Connecting an IG account fires the webhook-subscription listener; keep its
+    // Graph call off the wire.
+    Http::fake();
+
     expect(Platform::launchedMetaGraphPlatforms())->toBe([Platform::Facebook, Platform::Instagram]);
 
     // The connect flow stashes enumerated assets in the cache (not the session) so it

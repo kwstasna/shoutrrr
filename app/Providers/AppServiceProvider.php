@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Enums\Platform;
+use App\Events\ConnectedAccountConnected;
 use App\Listeners\BindWorkspaceToAccessToken;
 use App\Listeners\SetCurrentWorkspaceOnLogin;
 use App\Listeners\SetSentryUserContext;
+use App\Listeners\SubscribeAccountToMetaWebhooks;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\Auth\Socialite\ThreadsProvider;
@@ -112,6 +114,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Login::class, SetCurrentWorkspaceOnLogin::class);
         Event::listen(AccessTokenCreated::class, BindWorkspaceToAccessToken::class);
         Event::listen(Authenticated::class, SetSentryUserContext::class);
+        Event::listen(ConnectedAccountConnected::class, SubscribeAccountToMetaWebhooks::class);
 
         Passport::authorizationView(
             /** @param array<string, mixed> $parameters */

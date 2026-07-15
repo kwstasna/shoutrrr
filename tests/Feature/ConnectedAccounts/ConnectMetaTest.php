@@ -273,6 +273,10 @@ test('store creates a facebook connected account now that facebook is launched',
 test('store creates an instagram connected account now that instagram is launched', function () {
     expect(Platform::launchedMetaGraphPlatforms())->toBe([Platform::Facebook, Platform::Instagram]);
 
+    // Connecting an IG account fires the webhook-subscription listener; keep its
+    // Graph call off the wire.
+    Http::fake();
+
     [$user] = metaOwnerActingIn();
 
     stashMetaAssets($user->id, [

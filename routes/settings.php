@@ -35,6 +35,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('settings/workspace/webhooks', [WebhooksController::class, 'store'])->name('settings.workspace.webhooks.store');
     Route::post('settings/workspace/webhooks/regenerate', [WebhooksController::class, 'regenerate'])->name('settings.workspace.webhooks.regenerate');
     Route::post('settings/workspace/webhooks/test', [WebhooksController::class, 'test'])->name('settings.workspace.webhooks.test');
+    Route::post('settings/workspace/webhooks/subscribe', [WebhooksController::class, 'subscribe'])->name('settings.workspace.webhooks.subscribe');
     Route::delete('settings/workspace/webhooks', [WebhooksController::class, 'destroy'])->name('settings.workspace.webhooks.destroy');
 
     Route::get('settings/connections', [ConnectionsController::class, 'edit'])->name('connections.edit');

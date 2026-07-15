@@ -1,5 +1,13 @@
 import { Head, router } from '@inertiajs/react';
-import { Check, Copy, RefreshCw, Trash2, Webhook, Zap } from 'lucide-react';
+import {
+    Check,
+    Copy,
+    Link2,
+    RefreshCw,
+    Trash2,
+    Webhook,
+    Zap,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -110,20 +118,19 @@ function SetupGuide() {
                 <strong>Verify token</strong> above and click Verify and save.
             </li>
             <li>
-                Subscribe to the <code>story_insights</code> and{' '}
-                <code>comments</code> fields.
+                Subscribe to the <code>story_insights</code>,{' '}
+                <code>comments</code>, and <code>messages</code> fields (
+                <code>messages</code> carries story replies).
             </li>
             <li>
-                Subscribe each Instagram account by calling{' '}
-                <code>
-                    POST
-                    /&lt;ig-user-id&gt;/subscribed_apps?subscribed_fields=story_insights,comments
-                </code>
-                .
+                Connected Instagram accounts are subscribed automatically. For
+                accounts connected earlier, click{' '}
+                <strong>Subscribe accounts</strong> above to re-wire them.
             </li>
             <li>
-                Story insights arrive within 24h of a story being posted and
-                feed your analytics; comments land in your engagement inbox.
+                Story insights arrive when a story expires (within 24h) and feed
+                your analytics; comments and story replies land in your
+                engagement inbox.
             </li>
         </ol>
     );
@@ -143,6 +150,14 @@ export default function Webhooks({ webhook, globalSecretConfigured }: Props) {
     function sendTest() {
         router.post(
             WebhooksController.test().url,
+            {},
+            { preserveScroll: true },
+        );
+    }
+
+    function subscribeAccounts() {
+        router.post(
+            WebhooksController.subscribe().url,
             {},
             { preserveScroll: true },
         );
@@ -243,6 +258,13 @@ export default function Webhooks({ webhook, globalSecretConfigured }: Props) {
                                     >
                                         <Zap className="size-4" />
                                         Test
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={subscribeAccounts}
+                                    >
+                                        <Link2 className="size-4" />
+                                        Subscribe accounts
                                     </Button>
                                     <Button
                                         variant="outline"

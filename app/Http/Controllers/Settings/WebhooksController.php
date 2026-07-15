@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Settings;
 
+use App\Enums\ConnectedAccountStatus;
+use App\Enums\Platform;
 use App\Http\Controllers\Controller;
+use App\Models\ConnectedAccount;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceWebhook;
+use App\Services\Webhooks\MetaWebhookSubscriber;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -122,6 +126,42 @@ class WebhooksController extends Controller
             : '';
 
         return back()->with('error', 'The endpoint responded with HTTP '.$response->status().'.'.$hint);
+    }
+
+    /**
+     * (Re)subscribe every connected Instagram account's Page to this app, so Meta
+     * begins delivering their webhooks. New accounts are subscribed automatically on
+     * connect; this button re-wires accounts connected before webhooks were set up
+     * (or after a token refresh) without needing to reconnect them.
+     */
+    public function subscribe(Request $request, MetaWebhookSubscriber $subscriber): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $workspace = $user->currentWorkspace;
+        abort_if($workspace === null, 404);
+        $this->authorizeManage($user, $workspace->id);
+
+        $accounts = ConnectedAccount::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('platform', Platform::Instagram->value)
+            ->where('status', ConnectedAccountStatus::Active->value)
+            ->with('secret')
+            ->get();
+
+        if ($accounts->isEmpty()) {
+            return back()->with('error', 'No connected Instagram accounts to subscribe. Connect an Instagram account first.');
+        }
+
+        $subscribed = $accounts->filter(fn (ConnectedAccount $account): bool => $subscriber->subscribe($account))->count();
+
+        if ($subscribed === 0) {
+            return back()->with('error', "Couldn't subscribe any Instagram account — check that the accounts are still authorized.");
+        }
+
+        return back()->with('success', $subscribed === 1
+            ? '1 Instagram account subscribed to webhooks.'
+            : "{$subscribed} Instagram accounts subscribed to webhooks.");
     }
 
     public function destroy(Request $request): RedirectResponse
