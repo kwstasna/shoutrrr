@@ -27,7 +27,9 @@ class InstagramCommentRecorder
      */
     public function record(string $workspaceId, array $value): void
     {
-        $commentId = $this->stringOrNull($value['id'] ?? null);
+        // Instagram connects via Facebook Login, whose `comments` payload keys the
+        // comment as `comment_id`; the Business-Login shape uses `id`. Accept both.
+        $commentId = $this->stringOrNull($value['comment_id'] ?? $value['id'] ?? null);
         $mediaId = $this->stringOrNull($value['media']['id'] ?? $value['media_id'] ?? null);
 
         if ($commentId === null || $mediaId === null) {

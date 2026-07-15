@@ -100,14 +100,17 @@ test('a signed story_insights event persists a StoryInsight and denormalises ont
         ->and($this->webhook->last_event)->toBe('story_insights');
 });
 
-test('a signed comments event lands in the Engagement inbox as a pending reply', function () {
+test('a signed comments event (Facebook Login shape) lands in the Engagement inbox', function () {
     $target = storyTargetFor($this->workspace, 'media-with-comment');
 
+    // The Facebook-Login-for-Business `comments` payload Shoutrrr receives keys the
+    // comment as `comment_id` and carries `parent_id` (see Meta webhooks examples).
     metaPost($this->webhook, igEvent('comments', [
-        'id' => 'comment-1',
+        'comment_id' => 'comment-1',
+        'parent_id' => 'root-comment',
         'text' => 'love this',
         'from' => ['id' => '999', 'username' => 'fan_account'],
-        'media' => ['id' => 'media-with-comment'],
+        'media' => ['id' => 'media-with-comment', 'media_product_type' => 'STORY'],
     ]))->assertOk();
 
     $reply = PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'comment-1')->first();
@@ -116,8 +119,22 @@ test('a signed comments event lands in the Engagement inbox as a pending reply',
         ->and($reply->workspace_id)->toBe($this->workspace->id)
         ->and($reply->text)->toBe('love this')
         ->and($reply->author_handle)->toBe('fan_account')
+        ->and($reply->parent_remote_id)->toBe('root-comment')
         ->and($reply->status)->toBe(ReplyStatus::Pending)
         ->and($reply->is_ours)->toBeFalse();
+});
+
+test('a comments event in the Business-Login shape (id key) is also accepted', function () {
+    storyTargetFor($this->workspace, 'media-biz');
+
+    metaPost($this->webhook, igEvent('comments', [
+        'id' => 'biz-comment-1',
+        'text' => 'hey',
+        'from' => ['username' => 'someone'],
+        'media' => ['id' => 'media-biz'],
+    ]))->assertOk();
+
+    expect(PostTargetReply::withoutGlobalScopes()->where('remote_reply_id', 'biz-comment-1')->exists())->toBeTrue();
 });
 
 test('a comment redelivery is idempotent on (post_target_id, remote_reply_id)', function () {
