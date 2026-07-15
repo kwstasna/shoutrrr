@@ -36,4 +36,12 @@ return [
     // Fallback park duration (seconds) when a platform rate-limits us without a
     // usable Retry-After / reset header.
     'default_rate_limit_backoff' => (int) env('ENGAGEMENT_DEFAULT_RATE_LIMIT_BACKOFF', 900),
+
+    // Max `next_token` pages a single batched reply search will follow per chunk per
+    // run, so a viral post can't spin the API indefinitely (each page is one call).
+    // At 100 replies/page this admits up to ~500 replies per chunk per run. Recent
+    // Search is newest-first and `since` advances to the newest stored reply, so
+    // replies beyond the cap within one interval are not back-filled later — hitting
+    // the cap is logged (engagement.fetch.truncated). Raise this if it fires often.
+    'max_search_pages' => (int) env('ENGAGEMENT_MAX_SEARCH_PAGES', 5),
 ];

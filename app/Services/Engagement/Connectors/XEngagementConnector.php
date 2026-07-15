@@ -24,6 +24,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class XEngagementConnector implements BatchEngagementConnector, EngagementConnector
@@ -128,37 +129,9 @@ class XEngagementConnector implements BatchEngagementConnector, EngagementConnec
         $chunks = $this->chunkByQueryBudget($rootIds, $handle);
 
         foreach ($chunks as $index => $chunk) {
-            $ors = implode(' OR ', array_map(fn (string $id): string => "conversation_id:{$id}", $chunk));
-            $query = $handle === '' ? "({$ors})" : "({$ors}) -from:{$handle}";
+            [$byConversation, $failure] = $this->fetchChunkPages($account, $chunk, $handle, $token, $since);
 
-            $params = [
-                'query' => $query,
-                'tweet.fields' => 'author_id,created_at,in_reply_to_user_id,conversation_id',
-                'expansions' => 'author_id',
-                'user.fields' => 'username,name,profile_image_url',
-                'max_results' => 100,
-            ];
-
-            if ($since !== null) {
-                $params['start_time'] = $since->toIso8601ZuluString();
-            }
-
-            try {
-                $response = $this->http
-                    ->withToken($token)
-                    ->acceptJson()
-                    ->get(self::BASE.'/tweets/search/recent', $params);
-            } catch (ConnectionException $e) {
-                // A network blip is chunk-local; keep trying the other chunks.
-                $this->assignToChunk($results, $chunk, ReplyFetchResult::failed($e->getMessage()));
-
-                continue;
-            }
-
-            $this->meter(UsageCategory::ExternalApi, UsageOperation::REPLIES_FETCH, $account, $response);
-
-            if ($response->failed()) {
-                $failure = $this->mapFetchFailure($response);
+            if ($failure !== null) {
                 $this->assignToChunk($results, $chunk, $failure);
 
                 // Rate-limit / auth failures are account-wide (shared token): stop
@@ -174,26 +147,108 @@ class XEngagementConnector implements BatchEngagementConnector, EngagementConnec
                 continue;
             }
 
-            $users = $this->indexUsers($response);
-
-            /** @var array<string, list<FetchedReply>> $byConversation */
-            $byConversation = [];
-            foreach ((array) $response->json('data', []) as $tweet) {
-                $conversationId = (string) ($tweet['conversation_id'] ?? '');
-
-                if ($conversationId === '' || ! isset($results[$conversationId])) {
-                    continue;
-                }
-
-                $byConversation[$conversationId][] = $this->toFetchedReply($tweet, $users, $conversationId);
-            }
-
             foreach ($byConversation as $conversationId => $replies) {
                 $results[$conversationId] = ReplyFetchResult::ok($replies);
             }
         }
 
         return $results;
+    }
+
+    /**
+     * Fetch one chunk's replies, following `next_token` pagination up to a bounded
+     * page cap so a viral post can't spin the API indefinitely. Any page failure
+     * discards the chunk's partial data and returns the failure: the account job
+     * leaves `reply_fetched_at` untouched on a non-ok result, so the chunk is simply
+     * re-fetched next run rather than persisted half-complete (which could wrongly
+     * mark a conversation empty when a later, unfetched page held its replies).
+     *
+     * @param  list<string>  $chunk
+     * @return array{0: array<string, list<FetchedReply>>, 1: ReplyFetchResult|null}
+     */
+    private function fetchChunkPages(ConnectedAccount $account, array $chunk, string $handle, string $token, ?CarbonImmutable $since): array
+    {
+        $ors = implode(' OR ', array_map(fn (string $id): string => "conversation_id:{$id}", $chunk));
+        $query = $handle === '' ? "({$ors})" : "({$ors}) -from:{$handle}";
+
+        $baseParams = [
+            'query' => $query,
+            'tweet.fields' => 'author_id,created_at,in_reply_to_user_id,conversation_id',
+            'expansions' => 'author_id',
+            'user.fields' => 'username,name,profile_image_url',
+            'max_results' => 100,
+        ];
+
+        if ($since !== null) {
+            $baseParams['start_time'] = $since->toIso8601ZuluString();
+        }
+
+        $chunkSet = array_flip($chunk);
+        $maxPages = max(1, (int) config('engagement.max_search_pages', 5));
+
+        /** @var array<string, list<FetchedReply>> $byConversation */
+        $byConversation = [];
+        $nextToken = null;
+        $page = 0;
+
+        do {
+            $params = $baseParams;
+
+            if ($nextToken !== null) {
+                $params['next_token'] = $nextToken;
+            }
+
+            try {
+                $response = $this->http
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->get(self::BASE.'/tweets/search/recent', $params);
+            } catch (ConnectionException $e) {
+                return [[], ReplyFetchResult::failed($e->getMessage())];
+            }
+
+            $this->meter(UsageCategory::ExternalApi, UsageOperation::REPLIES_FETCH, $account, $response);
+
+            if ($response->failed()) {
+                return [[], $this->mapFetchFailure($response)];
+            }
+
+            $users = $this->indexUsers($response);
+
+            foreach ((array) $response->json('data', []) as $tweet) {
+                $conversationId = (string) ($tweet['conversation_id'] ?? '');
+
+                if ($conversationId === '' || ! isset($chunkSet[$conversationId])) {
+                    continue;
+                }
+
+                $byConversation[$conversationId][] = $this->toFetchedReply($tweet, $users, $conversationId);
+            }
+
+            $nextToken = $this->nextToken($response);
+            $page++;
+        } while ($nextToken !== null && $page < $maxPages);
+
+        if ($nextToken !== null) {
+            // More pages remained but we hit the cap. Recent Search is newest-first,
+            // so the unfetched overflow is older than what we kept and `since` will
+            // advance past it — surface it rather than dropping it silently.
+            Log::warning('engagement.fetch.truncated', [
+                'platform' => $account->platform->value,
+                'account_id' => $account->id,
+                'conversations' => $chunk,
+                'pages_fetched' => $page,
+            ]);
+        }
+
+        return [$byConversation, null];
+    }
+
+    private function nextToken(Response $response): ?string
+    {
+        $token = $response->json('meta.next_token');
+
+        return is_string($token) && $token !== '' ? $token : null;
     }
 
     /**
