@@ -54,8 +54,18 @@ x-environment: &app-env
 
 services:
     app:
-        image: "ghcr.io/coollabsio/shoutrrr:latest"
-        pull_policy: always
+        # Build this fork's source (Dockerfile) instead of pulling the upstream
+        # published image, so local code — Instagram Stories, per-workspace
+        # webhooks, and their migrations — actually ships. Swap back to
+        # `image: "ghcr.io/coollabsio/shoutrrr:latest"` + `pull_policy: always`
+        # to run upstream releases.
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                SERVERSIDEUP_PHP_VERSION: "${SERVERSIDEUP_PHP_VERSION:-8.5-frankenphp-trixie}"
+                POSTGRES_VERSION: "${POSTGRES_VERSION:-17}"
+        image: "shoutrrr:fork"
         restart: unless-stopped
         # Put any extra config in your .env (X_*, LINKEDIN_*, AWS_*,
         # OCTANE_HTTPS, ...) and it's passed straight through to the app.
