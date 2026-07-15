@@ -1,8 +1,8 @@
 # Instagram Stories & Meta webhooks
 
 Shoutrrr can schedule and publish Instagram **Stories** (photo or video) alongside
-feed posts and Reels, and receive **story insights** and **comments** back from Meta
-through a per-workspace webhook.
+feed posts and Reels, and receive **story insights**, **comments**, and **story
+replies** back from Meta through a per-workspace webhook.
 
 This guide covers publishing stories, wiring up the webhook, and where the data
 shows up. It is validated against the Meta developer documentation:
@@ -113,8 +113,25 @@ FACEBOOK_CLIENT_SECRET=          # also used to verify webhook signatures
 FACEBOOK_GRAPH_VERSION=v25.0
 ```
 
-Required OAuth scopes already requested at connect time include
-`instagram_content_publish` (publishing) and `instagram_manage_insights`
-(story insights). To subscribe pages programmatically you additionally need
-`pages_manage_metadata`, and to receive story replies (`messages`) the app needs
-`instagram_manage_messages`.
+### Instagram permissions
+
+Connecting an Instagram account requests the full permission set the feature needs,
+so a social media manager grants everything in one consent screen. Enable and
+request each of these on your app (**App Dashboard → Use cases / Permissions**);
+in Development mode they work for accounts added as testers, and production use
+requires **App Review / Advanced Access**.
+
+| Permission | Enables |
+| --- | --- |
+| `instagram_basic` | read the account + its media |
+| `instagram_content_publish` | publish feed posts, Reels, and **Stories** |
+| `instagram_manage_insights` | **story insights** (reach, replies, …) |
+| `instagram_manage_comments` | fetch + reply to comments |
+| `instagram_manage_messages` | receive + read **story replies** (Direct Messages) |
+| `pages_show_list` | enumerate the user's Pages during connect |
+| `pages_manage_metadata` | subscribe the linked Page to this app for webhook delivery |
+| `business_management` | resolve Business-owned Pages / assets |
+
+The exact list is the single source of truth in
+[`Platform::scopes()`](../app/Enums/Platform.php); Facebook publishing requests its
+own Page set alongside these when both are launched.

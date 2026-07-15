@@ -56,7 +56,11 @@ enum Platform: string
             self::LinkedIn => ['openid', 'profile', 'email', 'w_member_social'],
             self::Bluesky => [],
             self::Facebook => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_read_user_content', 'pages_manage_engagement', 'read_insights', 'business_management'],
-            self::Instagram => ['instagram_basic', 'instagram_content_publish', 'instagram_manage_comments', 'instagram_manage_insights', 'pages_show_list', 'business_management'],
+            // instagram_manage_messages: receive + read story replies (delivered as
+            // Direct Messages) for the Engagement inbox. pages_manage_metadata:
+            // subscribe the linked Page to this app (POST /{page-id}/subscribed_apps)
+            // so Meta actually delivers the account's webhooks.
+            self::Instagram => ['instagram_basic', 'instagram_content_publish', 'instagram_manage_comments', 'instagram_manage_insights', 'instagram_manage_messages', 'pages_show_list', 'pages_manage_metadata', 'business_management'],
             self::Threads => ['threads_basic', 'threads_content_publish', 'threads_manage_replies', 'threads_manage_insights'],
             self::Discord => [],
         };

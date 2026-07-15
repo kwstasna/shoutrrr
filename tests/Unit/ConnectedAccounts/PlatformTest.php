@@ -86,6 +86,21 @@ test('facebook scopes cover the reconciled facebook-login set', function () {
     ]);
 });
 
+test('instagram scopes cover publish, insights, comments, story replies, and page subscription', function () {
+    expect(Platform::Instagram->scopes())->toBe([
+        'instagram_basic',
+        'instagram_content_publish',
+        'instagram_manage_comments',
+        'instagram_manage_insights',
+        // Story replies arrive as Direct Messages.
+        'instagram_manage_messages',
+        'pages_show_list',
+        // Required to subscribe the linked Page to this app for webhook delivery.
+        'pages_manage_metadata',
+        'business_management',
+    ]);
+});
+
 test('meta platforms report oauth capability and no app password', function () {
     foreach ([Platform::Facebook, Platform::Instagram, Platform::Threads] as $platform) {
         expect($platform->supportsOAuth())->toBeTrue()
