@@ -1,0 +1,83 @@
+name: fork-image
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORK-ONLY. Do NOT include this file in a pull request to the upstream
+# coollabsio/shoutrrr repository — it exists purely to ship this fork.
+#
+# Builds this fork's production image (Instagram Stories, per-workspace webhooks,
+# etc.) and pushes it to GHCR, so the deploy server PULLS a prebuilt image
+# instead of compiling from source on every deploy (which churns disk + CPU on a
+# small shared droplet). Single linux/amd64 image — matches the DigitalOcean
+# host; drop in arm64 here only if you move to an arm server.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [feat/instagram-stories]
+    # Skip rebuilds when only docs/CI change (no effect on the runtime image).
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/workflows/lint.yml'
+      - '.github/workflows/tests.yml'
+      - '.github/workflows/security.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: fork-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/shoutrrr
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # push to GHCR
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          # `:latest` is what docker-compose.production.yaml pulls; the sha tag
+          # gives an immutable handle for rollbacks.
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # No secrets are baked in — APP_KEY / FACEBOOK_CLIENT_SECRET etc. are
+          # injected by Coolify as runtime env, never at build time.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Optional continuous deploy: if you set a COOLIFY_WEBHOOK repo secret to
+      # your app's Coolify deploy webhook URL, this pings it once the fresh image
+      # is on GHCR. Leave the secret unset to deploy manually from Coolify instead.
+      - name: Trigger Coolify deploy
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        if: ${{ env.COOLIFY_WEBHOOK != '' }}
+        run: |
+          curl -fsSL -X POST "$COOLIFY_WEBHOOK" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            -H 'Content-Type: application/json'
