@@ -1,4 +1,11 @@
-import { ArrowUpRight, ExternalLink, Heart, Trash2 } from 'lucide-react';
+import {
+    ArrowUpRight,
+    Eye,
+    EyeOff,
+    ExternalLink,
+    Heart,
+    Trash2,
+} from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,6 +22,7 @@ type Props = {
     thread: ReplyItem[];
     loading: boolean;
     onToggleLike: (reply: ReplyItem) => void;
+    onToggleHide: (reply: ReplyItem) => void;
     onDelete: (reply: ReplyItem) => void;
 };
 
@@ -28,6 +36,7 @@ export function ReplyThread({
     thread,
     loading,
     onToggleLike,
+    onToggleHide,
     onDelete,
 }: Props) {
     const postPlatformLabel = platformLabel(platform);
@@ -155,6 +164,7 @@ export function ReplyThread({
                                 className={cn(
                                     'max-w-[85%] rounded-2xl rounded-bl-sm border bg-card px-3.5 py-2.5',
                                     !reply.is_read && 'border-primary/40',
+                                    reply.is_hidden && 'opacity-55',
                                 )}
                             >
                                 <div className="mb-0.5 flex items-baseline gap-1.5">
@@ -171,6 +181,12 @@ export function ReplyThread({
                                         ·{' '}
                                         {relativeTime(reply.remote_created_at)}
                                     </span>
+                                    {reply.is_hidden ? (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                            <EyeOff className="size-2.5" />
+                                            Hidden
+                                        </span>
+                                    ) : null}
                                 </div>
                                 <p className="text-sm whitespace-pre-wrap">
                                     {reply.text}
@@ -179,7 +195,7 @@ export function ReplyThread({
                             <div
                                 className={cn(
                                     'mt-1 flex items-center gap-0.5 pl-1 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-                                    reply.is_liked
+                                    reply.is_liked || reply.is_hidden
                                         ? 'opacity-100'
                                         : 'opacity-0',
                                 )}
@@ -205,6 +221,35 @@ export function ReplyThread({
                                         )}
                                     />
                                 </button>
+                                {reply.can_hide ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onToggleHide(reply)}
+                                        aria-label={
+                                            reply.is_hidden
+                                                ? 'Unhide comment'
+                                                : 'Hide comment'
+                                        }
+                                        aria-pressed={reply.is_hidden}
+                                        title={
+                                            reply.is_hidden
+                                                ? 'Unhide this comment on Instagram'
+                                                : 'Hide this comment on Instagram'
+                                        }
+                                        className={cn(
+                                            actionButton,
+                                            reply.is_hidden
+                                                ? 'text-amber-500'
+                                                : 'hover:text-foreground',
+                                        )}
+                                    >
+                                        {reply.is_hidden ? (
+                                            <Eye className="size-3.5" />
+                                        ) : (
+                                            <EyeOff className="size-3.5" />
+                                        )}
+                                    </button>
+                                ) : null}
                                 {permalink ? (
                                     <a
                                         href={permalink}

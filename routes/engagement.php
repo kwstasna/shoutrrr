@@ -44,6 +44,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::middleware(['engagement.enabled', 'throttle:60,1'])->group(function (): void {
         Route::post('engagement/{reply}/like', [EngagementController::class, 'like'])->name('engagement.like');
         Route::delete('engagement/{reply}/like', [EngagementController::class, 'unlike'])->name('engagement.unlike');
+        Route::post('engagement/{reply}/hide', [EngagementController::class, 'hide'])->name('engagement.hide');
+        Route::delete('engagement/{reply}/hide', [EngagementController::class, 'unhide'])->name('engagement.unhide');
         Route::delete('engagement/{reply}', [EngagementController::class, 'destroyReply'])->name('engagement.destroy');
     });
 

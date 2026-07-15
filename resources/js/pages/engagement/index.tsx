@@ -33,10 +33,12 @@ import { cn } from '@/lib/utils';
 import {
     archive as archiveRoute,
     destroy as destroyRoute,
+    hide as hideRoute,
     index as engagementRoute,
     like as likeRoute,
     respond as respondRoute,
     thread as threadRoute,
+    unhide as unhideRoute,
     unlike as unlikeRoute,
 } from '@/routes/engagement';
 import type { PlatformName } from '@/types/compose';
@@ -284,6 +286,33 @@ function RightPane({
         }
     }
 
+    function toggleHide(reply: ReplyItem) {
+        const wasHidden = reply.is_hidden;
+        setThread((prev) =>
+            prev.map((r) =>
+                r.id === reply.id ? { ...r, is_hidden: !wasHidden } : r,
+            ),
+        );
+        const restore = () =>
+            setThread((prev) =>
+                prev.map((r) =>
+                    r.id === reply.id ? { ...r, is_hidden: wasHidden } : r,
+                ),
+            );
+        if (wasHidden) {
+            router.delete(unhideRoute(reply.id).url, {
+                preserveScroll: true,
+                onError: restore,
+            });
+        } else {
+            router.post(
+                hideRoute(reply.id).url,
+                {},
+                { preserveScroll: true, onError: restore },
+            );
+        }
+    }
+
     function remove(reply: ReplyItem) {
         const index = thread.findIndex((r) => r.id === reply.id);
         setThread((prev) => prev.filter((r) => r.id !== reply.id));
@@ -381,6 +410,7 @@ function RightPane({
                 thread={thread}
                 loading={loading}
                 onToggleLike={toggleLike}
+                onToggleHide={toggleHide}
                 onDelete={remove}
             />
 

@@ -13,6 +13,7 @@ use App\Models\ConnectedAccount;
 use App\Models\PostTarget;
 use App\Models\PostTargetReply;
 use App\Services\Engagement\Contracts\EngagementConnector;
+use App\Services\Engagement\Contracts\ModeratesComments;
 use App\Services\Usage\Concerns\TracksUsage;
 use App\Support\UsageOperation;
 use Carbon\CarbonImmutable;
@@ -31,7 +32,7 @@ use Illuminate\Http\Client\Response;
  * with a clear message. Instagram has no documented comment-like API, so
  * like/unlike always return `Unsupported` without making a request.
  */
-class InstagramEngagementConnector implements EngagementConnector
+class InstagramEngagementConnector implements EngagementConnector, ModeratesComments
 {
     use TracksUsage;
 
@@ -154,6 +155,27 @@ class InstagramEngagementConnector implements EngagementConnector
         }
 
         $this->meter(UsageCategory::ExternalApi, UsageOperation::REPLY_DELETE, $account, $response);
+
+        return $response->failed() ? $this->mapActionFailure($response) : ReplyActionResult::ok();
+    }
+
+    /**
+     * Hide/unhide an inbound comment. Instagram moderates comments with a boolean
+     * `hide` flag on the comment node (POST /{ig-comment-id}?hide=true|false); a
+     * hidden comment stays on the media but is removed from public view.
+     */
+    public function setCommentHidden(ConnectedAccount $account, PostTargetReply $reply, bool $hidden, array $credentials): ReplyActionResult
+    {
+        try {
+            $response = $this->http->asForm()->post($this->baseUrl().'/'.$reply->remote_reply_id, [
+                'hide' => $hidden ? 'true' : 'false',
+                'access_token' => (string) ($credentials['access_token'] ?? ''),
+            ]);
+        } catch (ConnectionException $e) {
+            return ReplyActionResult::failed($e->getMessage());
+        }
+
+        $this->meter(UsageCategory::ExternalApi, UsageOperation::REPLY_HIDE, $account, $response);
 
         return $response->failed() ? $this->mapActionFailure($response) : ReplyActionResult::ok();
     }

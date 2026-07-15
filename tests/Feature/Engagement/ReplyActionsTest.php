@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
 use App\Services\Engagement\Contracts\EngagementConnector;
+use App\Services\Engagement\Contracts\ModeratesComments;
 use App\Services\Engagement\EngagementConnectorRegistry;
 use Illuminate\Support\Facades\Context;
 use Mockery\MockInterface;
@@ -131,4 +132,97 @@ test('liking a reply in another workspace 404s', function (): void {
     ]);
 
     $this->post(route('engagement.like', $foreign))->assertNotFound();
+});
+
+/**
+ * Build an inbound Instagram comment on its own IG account/target, so the
+ * moderation actions have a real ModeratesComments-capable platform to run on
+ * (the shared beforeEach fixture is an X reply).
+ */
+function instagramCommentReply(Workspace $workspace): PostTargetReply
+{
+    $account = ConnectedAccount::factory()->create([
+        'workspace_id' => $workspace->id,
+        'platform' => Platform::Instagram,
+        'capabilities' => ['page_id' => 'PAGE1'],
+        'token_expires_at' => now()->addHour(),
+    ]);
+    ConnectedAccountSecret::factory()->create([
+        'connected_account_id' => $account->id,
+        'access_token' => 'tok',
+    ]);
+
+    $target = PostTarget::factory()
+        ->for(Post::factory()->create(['workspace_id' => $workspace->id]))
+        ->for($account, 'account')
+        ->create(['platform' => Platform::Instagram, 'remote_id' => 'MEDIA1']);
+
+    return PostTargetReply::factory()->for($target, 'target')->create([
+        'workspace_id' => $workspace->id,
+        'platform' => Platform::Instagram,
+        'remote_reply_id' => 'C1',
+        'is_ours' => false,
+    ]);
+}
+
+/**
+ * @param  callable(MockInterface): void  $expectations
+ */
+function fakeModerationConnector(callable $expectations): void
+{
+    $connector = Mockery::mock(EngagementConnector::class, ModeratesComments::class);
+    $expectations($connector);
+    $registry = Mockery::mock(EngagementConnectorRegistry::class);
+    $registry->shouldReceive('for')->andReturn($connector);
+    app()->instance(EngagementConnectorRegistry::class, $registry);
+}
+
+test('hiding an instagram comment records hidden_at and calls the connector', function (): void {
+    $reply = instagramCommentReply($this->workspace);
+    fakeModerationConnector(fn ($c) => $c->shouldReceive('setCommentHidden')
+        ->once()->with(Mockery::any(), Mockery::any(), true, Mockery::any())
+        ->andReturn(ReplyActionResult::ok()));
+
+    $this->post(route('engagement.hide', $reply))->assertRedirect()->assertSessionHas('success');
+
+    expect($reply->fresh()->hidden_at)->not->toBeNull();
+});
+
+test('unhiding an instagram comment clears hidden_at', function (): void {
+    $reply = instagramCommentReply($this->workspace);
+    $reply->forceFill(['hidden_at' => now()])->save();
+
+    fakeModerationConnector(fn ($c) => $c->shouldReceive('setCommentHidden')
+        ->once()->with(Mockery::any(), Mockery::any(), false, Mockery::any())
+        ->andReturn(ReplyActionResult::ok()));
+
+    $this->delete(route('engagement.unhide', $reply))->assertRedirect();
+
+    expect($reply->fresh()->hidden_at)->toBeNull();
+});
+
+test('a failed hide keeps the comment visible and surfaces the error', function (): void {
+    $reply = instagramCommentReply($this->workspace);
+    fakeModerationConnector(fn ($c) => $c->shouldReceive('setCommentHidden')
+        ->andReturn(ReplyActionResult::failed('rate limited')));
+
+    $this->post(route('engagement.hide', $reply))->assertSessionHas('error');
+
+    expect($reply->fresh()->hidden_at)->toBeNull();
+});
+
+test('hiding our own reply is forbidden', function (): void {
+    $reply = instagramCommentReply($this->workspace);
+    $reply->forceFill(['is_ours' => true])->save();
+
+    $this->post(route('engagement.hide', $reply))->assertForbidden();
+});
+
+test('hiding is rejected on a platform without moderation support', function (): void {
+    // The shared fixture reply is X, whose connector is not ModeratesComments.
+    fakeActionConnector(fn ($c) => $c->shouldReceive('setCommentHidden')->never());
+
+    $this->post(route('engagement.hide', $this->reply))->assertSessionHas('error');
+
+    expect($this->reply->fresh()->hidden_at)->toBeNull();
 });

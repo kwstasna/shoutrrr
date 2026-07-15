@@ -14,6 +14,7 @@ use App\Jobs\SendReply;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostTargetReply;
+use App\Services\Engagement\Contracts\ModeratesComments;
 use App\Services\Engagement\EngagementConnectorRegistry;
 use App\Services\Publishing\TokenManager;
 use App\Support\InstanceSettings;
@@ -470,6 +471,68 @@ class EngagementController extends Controller
         $reply->delete();
 
         return back()->with('success', 'Reply deleted.');
+    }
+
+    public function hide(
+        PostTargetReply $reply,
+        EngagementConnectorRegistry $registry,
+        TokenManager $tokens,
+    ): RedirectResponse {
+        return $this->setHidden($reply, true, $registry, $tokens);
+    }
+
+    public function unhide(
+        PostTargetReply $reply,
+        EngagementConnectorRegistry $registry,
+        TokenManager $tokens,
+    ): RedirectResponse {
+        return $this->setHidden($reply, false, $registry, $tokens);
+    }
+
+    /**
+     * Hide/unhide an inbound comment on the platform (Meta comment moderation).
+     * Only inbound comments are moderatable — never our own replies — and only on
+     * platforms whose connector opts into {@see ModeratesComments}.
+     */
+    private function setHidden(
+        PostTargetReply $reply,
+        bool $hidden,
+        EngagementConnectorRegistry $registry,
+        TokenManager $tokens,
+    ): RedirectResponse {
+        abort_if($reply->is_ours, 403);
+
+        if (($reply->hidden_at !== null) === $hidden) {
+            return back();
+        }
+
+        $connector = $registry->for($reply->platform);
+
+        if (! $connector instanceof ModeratesComments) {
+            return back()->with('error', 'Hiding comments is not supported on this platform.');
+        }
+
+        $account = $reply->target?->account;
+
+        if ($account === null) {
+            return back()->with('error', 'This account is no longer connected.');
+        }
+
+        try {
+            $credentials = $this->credentialsFor($account, $tokens);
+        } catch (TokenRefreshException) {
+            return back()->with('error', 'Could not authenticate with the platform. Reconnect the account.');
+        }
+
+        $result = $connector->setCommentHidden($account, $reply, $hidden, $credentials);
+
+        if (! $result->isOk()) {
+            return back()->with('error', $result->message ?? 'Could not update this comment.');
+        }
+
+        $reply->forceFill(['hidden_at' => $hidden ? now() : null])->save();
+
+        return back()->with('success', $hidden ? 'Comment hidden.' : 'Comment unhidden.');
     }
 
     /**

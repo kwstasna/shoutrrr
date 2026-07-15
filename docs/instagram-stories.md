@@ -99,7 +99,10 @@ secret are encrypted at rest.
   comments, shares to reposts.
 - **Comments** → the **Engagement** inbox, deduplicated on
   `(post_target_id, remote_reply_id)` so a comment that also arrives via polling
-  never doubles up.
+  never doubles up. Inbound Instagram comments can be **hidden/unhidden** from the
+  inbox (Meta comment moderation, `POST /{ig-comment-id}?hide=`) — a hidden comment
+  stays on the media but is removed from public view. Requires
+  `instagram_manage_comments`.
 - **Story replies** → the **Engagement** inbox too. A reply is a Direct Message
   carrying a `reply_to.story` context; Shoutrrr matches that story back to its post
   target and stores the reply on the same `(post_target_id, remote_reply_id)`

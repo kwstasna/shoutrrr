@@ -12,6 +12,9 @@ export type ReplyItem = {
     remote_created_at: string;
     is_read: boolean;
     is_liked: boolean;
+    is_hidden: boolean;
+    /** Inbound comment on a moderation-capable platform (Instagram). */
+    can_hide: boolean;
     is_ours: boolean;
     send_status: 'sending' | 'sent' | 'failed' | null;
     status: 'pending' | 'responded' | 'archived';

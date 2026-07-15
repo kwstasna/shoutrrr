@@ -26,6 +26,11 @@ final class ReplyListItem
             'remote_created_at' => $reply->remote_created_at->toIso8601String(),
             'is_read' => $reply->read_at !== null,
             'is_liked' => $reply->liked_at !== null,
+            'is_hidden' => $reply->hidden_at !== null,
+            // Only inbound comments on a moderation-capable platform can be
+            // hidden; the inbox uses this to decide whether to offer the action.
+            'can_hide' => ! $reply->is_ours
+                && ($target?->platform->value ?? $reply->platform->value) === 'instagram',
             'is_ours' => $reply->is_ours,
             'send_status' => $reply->send_status?->value,
             'status' => $reply->status->value,

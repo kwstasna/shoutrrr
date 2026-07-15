@@ -153,3 +153,46 @@ test('deleteReply deletes the comment', function () {
 
     Http::assertSent(fn ($req) => $req->method() === 'DELETE' && str_contains($req->url(), '/C1'));
 });
+
+test('setCommentHidden hides a comment via the hide flag', function () {
+    Http::fake(['graph.facebook.com/*/C1' => Http::response(['success' => true])]);
+
+    $reply = PostTargetReply::factory()->create([
+        'platform' => Platform::Instagram,
+        'remote_reply_id' => 'C1',
+    ]);
+
+    $result = instagramConnector()->setCommentHidden(instagramAccount(), $reply, true, ['access_token' => 't']);
+
+    expect($result->isOk())->toBeTrue();
+
+    Http::assertSent(fn ($req) => $req->method() === 'POST'
+        && str_contains($req->url(), '/C1')
+        && $req['hide'] === 'true');
+});
+
+test('setCommentHidden unhides a comment with hide=false', function () {
+    Http::fake(['graph.facebook.com/*/C1' => Http::response(['success' => true])]);
+
+    $reply = PostTargetReply::factory()->create([
+        'platform' => Platform::Instagram,
+        'remote_reply_id' => 'C1',
+    ]);
+
+    instagramConnector()->setCommentHidden(instagramAccount(), $reply, false, ['access_token' => 't']);
+
+    Http::assertSent(fn ($req) => $req['hide'] === 'false');
+});
+
+test('setCommentHidden maps a 403 to unsupported', function () {
+    Http::fake(['graph.facebook.com/*/C1' => Http::response(['error' => ['message' => 'no perms']], 403)]);
+
+    $reply = PostTargetReply::factory()->create([
+        'platform' => Platform::Instagram,
+        'remote_reply_id' => 'C1',
+    ]);
+
+    $result = instagramConnector()->setCommentHidden(instagramAccount(), $reply, true, ['access_token' => 't']);
+
+    expect($result->status)->toBe(EngagementStatus::Unsupported);
+});
