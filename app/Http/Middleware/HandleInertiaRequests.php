@@ -10,9 +10,11 @@ use App\Models\ConnectedAccount;
 use App\Models\PostTargetReply;
 use App\Models\User;
 use App\Models\WorkspaceMembership;
+use App\Support\CommunityStats;
 use App\Support\InstanceSettings;
 use App\Support\Notifications\NotificationPresenter;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 use Override;
 
@@ -75,6 +77,11 @@ class HandleInertiaRequests extends Middleware
             'instance' => [
                 'isOwner' => $request->user()?->isInstanceOwner() ?? false,
             ],
+            'billing' => Inertia::defer(fn () => $this->billingData($request->user()), 'sidebar'),
+            'community' => Inertia::defer(fn () => $this->communityData(), 'sidebar')->once(),
+            'updateAvailable' => Inertia::defer(fn () => $this->updateData()['updateAvailable'], 'sidebar')->once(),
+            'latestVersion' => Inertia::defer(fn () => $this->updateData()['latestVersion'], 'sidebar')->once(),
+            'latestReleaseUrl' => Inertia::defer(fn () => $this->updateData()['latestReleaseUrl'], 'sidebar')->once(),
         ];
     }
 
@@ -158,6 +165,9 @@ class HandleInertiaRequests extends Middleware
         }
 
         $memberships = $user->workspaceMemberships()->with('workspace.postingSchedule')->get();
+        // Cache the eager-loaded memberships on the user so billingData() can reuse
+        // them within the same request instead of issuing a second query.
+        $user->setRelation('workspaceMemberships', $memberships);
 
         $all = $memberships->map(fn (WorkspaceMembership $m) => [
             'id' => $m->workspace->id,
@@ -187,6 +197,71 @@ class HandleInertiaRequests extends Middleware
             'all' => $all,
             'current' => $current,
             'canCreateWorkspaces' => $canCreate,
+        ];
+    }
+
+    /**
+     * @return array{subscribed: bool, manageUrl: string}|null
+     */
+    private function billingData(?User $user): ?array
+    {
+        if (! config('subscriptions.enabled') || ! $user || ! $user->current_workspace_id) {
+            return null;
+        }
+
+        // Reuse the memberships eager-loaded by workspacesData() (which runs earlier
+        // in the same request); fall back to a scoped query if they aren't loaded.
+        $membership = $user->relationLoaded('workspaceMemberships')
+            ? $user->workspaceMemberships->firstWhere('workspace_id', $user->current_workspace_id)
+            : $user->workspaceMemberships()
+                ->with('workspace')
+                ->where('workspace_id', $user->current_workspace_id)
+                ->first();
+
+        if (! $membership || ! in_array('workspace.billing.manage', $membership->permissions, true)) {
+            return null;
+        }
+
+        return [
+            'subscribed' => $membership->workspace->subscribed('default'),
+            'manageUrl' => route('billing.index'),
+        ];
+    }
+
+    /**
+     * @return array{repoUrl: string, sponsorUrl: string, stars: ?int}|null
+     */
+    private function communityData(): ?array
+    {
+        if (config('subscriptions.enabled')) {
+            return null;
+        }
+
+        $repo = (string) config('instance.community.repo');
+
+        return [
+            'repoUrl' => "https://github.com/{$repo}",
+            'sponsorUrl' => (string) config('instance.community.sponsor_url'),
+            'stars' => CommunityStats::stars(),
+        ];
+    }
+
+    /**
+     * @return array{updateAvailable: bool, latestVersion: ?string, latestReleaseUrl: ?string}
+     */
+    private function updateData(): array
+    {
+        if (config('subscriptions.enabled') || ! CommunityStats::updateAvailable()) {
+            return ['updateAvailable' => false, 'latestVersion' => null, 'latestReleaseUrl' => null];
+        }
+
+        $latest = CommunityStats::latestVersion();
+        $repo = (string) config('instance.community.repo');
+
+        return [
+            'updateAvailable' => true,
+            'latestVersion' => $latest,
+            'latestReleaseUrl' => "https://github.com/{$repo}/releases/tag/{$latest}",
         ];
     }
 

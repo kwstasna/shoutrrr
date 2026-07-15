@@ -84,3 +84,57 @@ describe('sidebar app version link', () => {
         expect(source).toContain('rel="noopener noreferrer"');
     });
 });
+
+describe('sidebar footer card + update dot', () => {
+    const source = readFileSync(
+        resolve(
+            process.cwd(),
+            'resources/js/components/layout/app-sidebar.tsx',
+        ),
+        'utf8',
+    );
+
+    it('renders the footer card above the user menu', () => {
+        expect(source).toContain('<SidebarFooterCard />');
+    });
+
+    it('shows a red update dot on the version badge', () => {
+        expect(source).toContain('updateAvailable');
+        expect(source).toContain('bg-red-500');
+    });
+});
+
+describe('version badge update tooltip', () => {
+    const source = readFileSync(
+        resolve(
+            process.cwd(),
+            'resources/js/components/layout/app-sidebar.tsx',
+        ),
+        'utf8',
+    );
+
+    it('links the badge to the new release when an update is available', () => {
+        expect(source).toContain('latestReleaseUrl');
+    });
+
+    it('names the available version in a tooltip', () => {
+        expect(source).toContain('TooltipContent');
+        expect(source).toContain('Update available');
+        expect(source).toContain('latestVersion');
+    });
+});
+
+describe('hoisted workspace settings nav', () => {
+    const source = readFileSync(
+        resolve(
+            process.cwd(),
+            'resources/js/components/layout/app-sidebar.tsx',
+        ),
+        'utf8',
+    );
+
+    it('renders workspace settings items from the shared builder', () => {
+        expect(source).toContain('workspaceSettingsNavItems(');
+        expect(source).toContain('workspaceSettingsIcons[item.key]');
+    });
+});
