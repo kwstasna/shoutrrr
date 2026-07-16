@@ -14,6 +14,11 @@ final class FileStorage
         return (string) config('filesystems.default');
     }
 
+    public static function publicImageDiskName(): string
+    {
+        return (string) (config('filesystems.public_images') ?: self::diskName());
+    }
+
     public static function disk(?string $name = null): Filesystem
     {
         return Storage::disk($name ?? self::diskName());

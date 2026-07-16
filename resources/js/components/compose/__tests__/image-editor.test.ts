@@ -62,3 +62,19 @@ describe('image editor background controls', () => {
         expect(gradientsIndex).toBeGreaterThan(noneIndex);
     });
 });
+
+describe('image editor default focus', () => {
+    it('focuses the primary upload/apply button instead of the close control', () => {
+        const source = readFileSync(
+            resolve(
+                process.cwd(),
+                'resources/js/components/compose/image-editor.tsx',
+            ),
+            'utf8',
+        );
+
+        expect(source).toContain('initialFocus={primaryButtonRef}');
+        expect(source).toContain('ref={primaryButtonRef}');
+        expect(source).toContain('primaryButtonRef.current?.focus()');
+    });
+});

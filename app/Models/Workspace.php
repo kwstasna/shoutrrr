@@ -126,7 +126,7 @@ class Workspace extends Model
                 return $value;
             }
 
-            return FileStorage::url($value);
+            return FileStorage::url($value, FileStorage::publicImageDiskName());
         }
 
         return "https://api.dicebear.com/9.x/glass/svg?seed={$this->attributes['id']}";

@@ -45,7 +45,7 @@ class ProfileController extends Controller
 
         if ($request->hasFile('photo')) {
             $oldAvatarPath = $user->avatar_path;
-            $disk = FileStorage::diskName();
+            $disk = FileStorage::publicImageDiskName();
             $path = $request->file('photo')->store('profile-photos', $disk);
 
             if ($path === false) {

@@ -72,7 +72,7 @@ class User extends Authenticatable implements MustVerifyEmail, OAuthenticatable,
         $path = $this->attributes['avatar_path'] ?? null;
 
         if ($path) {
-            return FileStorage::url($path);
+            return FileStorage::url($path, FileStorage::publicImageDiskName());
         }
 
         return "https://api.dicebear.com/9.x/glass/svg?seed={$this->attributes['id']}";

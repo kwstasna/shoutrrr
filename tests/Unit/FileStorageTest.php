@@ -13,6 +13,21 @@ test('it exposes the configured default disk', function () {
     Storage::disk('s3')->assertExists('media/file.txt');
 });
 
+test('the public image disk falls back to the configured default disk', function () {
+    config([
+        'filesystems.default' => 's3',
+        'filesystems.public_images' => null,
+    ]);
+
+    expect(FileStorage::publicImageDiskName())->toBe('s3');
+});
+
+test('the public image disk can be configured separately', function () {
+    config(['filesystems.public_images' => 'public-images']);
+
+    expect(FileStorage::publicImageDiskName())->toBe('public-images');
+});
+
 test('it returns a plain url for a public disk', function () {
     Storage::fake('public');
 

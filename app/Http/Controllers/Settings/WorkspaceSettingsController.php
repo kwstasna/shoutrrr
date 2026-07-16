@@ -71,7 +71,7 @@ class WorkspaceSettingsController extends Controller
 
         if ($request->hasFile('photo')) {
             $oldLogo = $workspace->getRawOriginal('logo');
-            $disk = FileStorage::diskName();
+            $disk = FileStorage::publicImageDiskName();
             $path = $request->file('photo')->store('workspace-photos', $disk);
 
             if ($path === false) {
