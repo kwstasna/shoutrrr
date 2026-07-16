@@ -13,7 +13,13 @@ name: fork-image
 
 on:
   push:
-    branches: [feat/instagram-stories]
+    # Both feature branches build. NOTE they share the `:latest` tag, which is
+    # what docker-compose.production.yaml pulls — so whichever branch pushed most
+    # recently is what the deploy server gets. That is deliberate (it's how a
+    # branch gets tested on the real host), but it means pushing here IS a
+    # release: pin APP_IMAGE to a :sha tag in Coolify if you need the other
+    # branch back.
+    branches: [feat/instagram-stories, feat/tiktok-integration]
     # Skip rebuilds when only docs/CI change (no effect on the runtime image).
     paths-ignore:
       - 'docs/**'
