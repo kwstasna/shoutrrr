@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { instanceSettingsLabel, workspaceSettingsLabel } from '../app-sidebar';
 
 describe('workspaceSettingsLabel', () => {
-    it('identifies the sidebar destination as workspace settings', () => {
-        expect(workspaceSettingsLabel).toBe('Workspace settings');
+    it('identifies the sidebar destination as settings under workspace', () => {
+        expect(workspaceSettingsLabel).toBe('Settings');
     });
 
     it('identifies the owner-only instance settings destination', () => {
@@ -16,7 +16,7 @@ describe('workspaceSettingsLabel', () => {
 });
 
 describe('settings sidebar active states', () => {
-    it('keeps instance settings active on child pages', () => {
+    it('keeps instance settings active on child pages via the shared nav builder', () => {
         const source = readFileSync(
             resolve(
                 process.cwd(),
@@ -25,9 +25,9 @@ describe('settings sidebar active states', () => {
             'utf8',
         );
 
-        expect(source).toContain(
-            'isActive={isCurrentOrParentUrl(\n                                                InstanceSettingsController.edit(),\n                                            )}',
-        );
+        expect(source).toContain('instanceSettingsNavItems(');
+        expect(source).toContain('instanceActive');
+        expect(source).toContain("item.key === 'general'");
     });
 });
 
@@ -133,8 +133,26 @@ describe('hoisted workspace settings nav', () => {
         'utf8',
     );
 
-    it('renders workspace settings items from the shared builder', () => {
+    it('renders workspace settings as a collapsible under the Workspace group', () => {
         expect(source).toContain('workspaceSettingsNavItems(');
-        expect(source).toContain('workspaceSettingsIcons[item.key]');
+        expect(source).toContain('<Collapsible');
+        expect(source).toContain('<SidebarMenuSub>');
+        expect(source).toContain('SidebarGroupLabel>Workspace');
+        expect(source).toContain('workspaceSettingsLabel');
+        expect(source).not.toContain('workspaceSettingsIcons');
+    });
+
+    it('renders instance settings as a collapsible under the Workspace group', () => {
+        expect(source).toContain('instanceSettingsNavItems(');
+        expect(source).toContain('instanceSettingsLabel');
+        expect(source).toContain('instanceOpen');
+        expect(source).toContain('setInstanceOpen');
+    });
+
+    it('opens nested settings as flyout dropdowns when the sidebar is collapsed', () => {
+        expect(source).toContain('function NestedSidebarNav');
+        expect(source).toContain('<DropdownMenu>');
+        expect(source).toContain('side="right"');
+        expect(source).toContain('collapsed={collapsed}');
     });
 });
