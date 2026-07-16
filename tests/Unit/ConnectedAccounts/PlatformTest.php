@@ -60,7 +60,7 @@ test('capabilities array exposes one entry per platform for the frontend', funct
 
     $caps = Platform::capabilities();
 
-    expect($caps)->toHaveCount(7)
+    expect($caps)->toHaveCount(count(Platform::cases()))
         ->and($caps[0])->toHaveKeys(['platform', 'label', 'supportsOAuth', 'supportsAppPassword', 'supportsWebhook', 'configured', 'launched', 'enabled']);
 });
 
@@ -71,7 +71,8 @@ test('every platform is launched', function () {
         ->and(Platform::Facebook->isLaunched())->toBeTrue()
         ->and(Platform::Instagram->isLaunched())->toBeTrue()
         ->and(Platform::Threads->isLaunched())->toBeTrue()
-        ->and(Platform::Discord->isLaunched())->toBeTrue();
+        ->and(Platform::Discord->isLaunched())->toBeTrue()
+        ->and(Platform::TikTok->isLaunched())->toBeTrue();
 });
 
 test('facebook scopes cover the reconciled facebook-login set', function () {

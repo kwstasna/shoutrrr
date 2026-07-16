@@ -18,6 +18,7 @@ const settings: PollingSettings = {
         instagram: 15,
         threads: 15,
         discord: 15,
+        tiktok: 15,
         enabled: {
             x: true,
             bluesky: true,
@@ -26,6 +27,7 @@ const settings: PollingSettings = {
             instagram: true,
             threads: true,
             discord: false,
+            tiktok: true,
         },
     },
     post_metrics: {
@@ -36,6 +38,7 @@ const settings: PollingSettings = {
         instagram: 15,
         threads: 15,
         discord: 15,
+        tiktok: 15,
         enabled: {
             x: true,
             bluesky: false,
@@ -44,6 +47,7 @@ const settings: PollingSettings = {
             instagram: true,
             threads: true,
             discord: true,
+            tiktok: true,
         },
     },
     account_metrics: {
@@ -54,6 +58,7 @@ const settings: PollingSettings = {
         instagram: 15,
         threads: 15,
         discord: 15,
+        tiktok: 15,
         enabled: {
             x: false,
             bluesky: true,
@@ -62,6 +67,7 @@ const settings: PollingSettings = {
             instagram: true,
             threads: true,
             discord: true,
+            tiktok: true,
         },
     },
 };

@@ -18,7 +18,7 @@ final class DraftData
      * @param  list<string>  $destinationIds
      * @param  list<string>  $mediaIds
      * @param  list<array{id: string, label: string, handles: array<string, string>}>  $mentions
-     * @param  array<string, array{auto_split?: bool, format?: PostFormat, content_override?: array{segments: list<string>, media_ids: list<string>}|null}>  $targetsByAccount
+     * @param  array<string, array{auto_split?: bool, format?: PostFormat, tiktok_options?: TikTokOptionsData|null, content_override?: array{segments: list<string>, media_ids: list<string>}|null}>  $targetsByAccount
      */
     public function __construct(
         /** @var list<string> */
@@ -47,6 +47,11 @@ final class DraftData
             }
             if (array_key_exists('format', $target)) {
                 $entry['format'] = PostFormat::tryFrom((string) $target['format']) ?? PostFormat::Feed;
+            }
+            if (array_key_exists('tiktok_options', $target)) {
+                $entry['tiktok_options'] = is_array($target['tiktok_options'])
+                    ? TikTokOptionsData::fromArray($target['tiktok_options'])
+                    : null;
             }
             if (array_key_exists('content_override', $target)) {
                 $entry['content_override'] = self::readOverride($target['content_override']);
@@ -84,6 +89,16 @@ final class DraftData
     public function formatFor(string $accountId): PostFormat
     {
         return $this->targetsByAccount[$accountId]['format'] ?? PostFormat::Feed;
+    }
+
+    public function hasTikTokOptionsFor(string $accountId): bool
+    {
+        return array_key_exists('tiktok_options', $this->targetsByAccount[$accountId] ?? []);
+    }
+
+    public function tiktokOptionsFor(string $accountId): ?TikTokOptionsData
+    {
+        return $this->targetsByAccount[$accountId]['tiktok_options'] ?? null;
     }
 
     public function hasOverrideFor(string $accountId): bool

@@ -12,6 +12,7 @@ use App\Models\ConnectedAccount;
 use App\Models\ConnectedAccountSecret;
 use App\Services\Atproto\DPoP;
 use App\Services\ConnectedAccounts\Threads\ThreadsTokenExchanger;
+use App\Services\ConnectedAccounts\TikTok\TikTokOAuthConnector;
 use App\Services\Usage\Concerns\TracksUsage;
 use App\Support\UsageOperation;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -32,6 +33,7 @@ class TokenManager
         private readonly HttpFactory $http,
         private readonly DPoP $dpop,
         private readonly ThreadsTokenExchanger $threadsExchanger,
+        private readonly TikTokOAuthConnector $tiktokConnector,
     ) {}
 
     /**
@@ -55,6 +57,10 @@ class TokenManager
 
         if ($account->platform === Platform::Threads) {
             return $this->threadsCredentials($account, $secret, $force);
+        }
+
+        if ($account->platform === Platform::TikTok) {
+            return $this->tiktokCredentials($account, $secret, $force);
         }
 
         // Facebook/Instagram authenticate with a Page access token minted from a
@@ -154,6 +160,71 @@ class TokenManager
 
                 return $this->refreshThreads($freshAccount, $freshSecret);
             });
+    }
+
+    /**
+     * TikTok does not fit the shared `refreshOAuth()` path: its token endpoint
+     * takes `client_key` rather than `client_id`, lives on a host the generic
+     * if/elseif chain does not know, and returns failures inside a 200 body.
+     *
+     * @return array<string, mixed>
+     */
+    private function tiktokCredentials(ConnectedAccount $account, ConnectedAccountSecret $secret, bool $force): array
+    {
+        if (! $force && ! $this->needsRefresh($account)) {
+            return ['access_token' => $secret->access_token];
+        }
+
+        // Serialize per account and re-read under the lock, exactly as the generic
+        // path does. TikTok may rotate the refresh token on use, so two concurrent
+        // refreshers would race: the winner rotates it and the loser then presents
+        // a consumed token, failing the account for no reason.
+        return Cache::lock("connected-account-token-refresh:{$account->id}", 60)
+            ->block(10, function () use ($account, $force): array {
+                $freshAccount = $account->newQueryWithoutScopes()->findOrFail($account->id);
+                $freshSecret = $freshAccount->secret()->firstOrFail();
+
+                if (! $force && ! $this->needsRefresh($freshAccount)) {
+                    return ['access_token' => $freshSecret->access_token];
+                }
+
+                return $this->refreshTikTok($freshAccount, $freshSecret);
+            });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function refreshTikTok(ConnectedAccount $account, ConnectedAccountSecret $secret): array
+    {
+        try {
+            $refreshed = $this->tiktokConnector->refresh((string) $secret->refresh_token);
+        } catch (Throwable $exception) {
+            $account->forceFill([
+                'status' => ConnectedAccountStatus::NeedsAttention->value,
+                'refresh_failed_at' => Date::now(),
+                'refresh_failure_reason' => $exception->getMessage(),
+            ])->save();
+
+            throw $exception;
+        }
+
+        // TikTok MAY hand back a different refresh token, and the old one then
+        // stops working — so both are always written, never just the access token.
+        $secret->forceFill([
+            'access_token' => $refreshed['accessToken'],
+            'refresh_token' => $refreshed['refreshToken'],
+        ])->save();
+
+        $account->forceFill([
+            'token_expires_at' => $refreshed['expiresAt'],
+            'last_refreshed_at' => Date::now(),
+            'status' => ConnectedAccountStatus::Active->value,
+            'refresh_failed_at' => null,
+            'refresh_failure_reason' => null,
+        ])->save();
+
+        return ['access_token' => $refreshed['accessToken']];
     }
 
     /**

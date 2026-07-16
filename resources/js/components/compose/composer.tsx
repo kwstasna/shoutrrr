@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import WorkspaceMentionController from '@/actions/App/Http/Controllers/WorkspaceMentionController';
 import { useAutosave } from '@/hooks/compose/use-autosave';
+import { useCreatorInfo } from '@/hooks/compose/use-creator-info';
 import { useEmojiPreferences } from '@/hooks/compose/use-emoji-preferences';
 import { useImageEditor } from '@/hooks/compose/use-image-editor';
 import { useMediaUploads } from '@/hooks/compose/use-media-uploads';
@@ -30,6 +31,10 @@ import {
     syncMentionsFromText,
 } from '@/lib/compose/mentions';
 import { buildPlatformPreview } from '@/lib/compose/platform-preview';
+import {
+    DEFAULT_TIKTOK_OPTIONS,
+    type TikTokMediaKind,
+} from '@/lib/compose/tiktok';
 import { readVideoMetadata } from '@/lib/compose/video';
 import {
     defaultSettings,
@@ -65,6 +70,8 @@ import { ScheduleTray } from './schedule-tray';
 import { StoryComposer } from './story-composer';
 import { SubmitBar } from './submit-bar';
 import { TargetStatusChips } from './target-status-chips';
+import { TikTokOptionsPanel } from './tiktok-options-panel';
+import { TikTokPostModeToggle } from './tiktok-post-mode-toggle';
 import { VideoEditor } from './video-editor';
 
 /** What the image editor is currently working on. */
@@ -551,6 +558,26 @@ export default function Composer({
             : 'feed';
     const isInstagramStory =
         activeIsInstagram && activeInstagramFormat === 'story';
+
+    const activeIsTikTok = activeAccount?.platform === 'tiktok';
+    const tiktokOptions = activeAccount
+        ? (state.tiktokOptionsByAccount[activeAccount.id] ??
+          DEFAULT_TIKTOK_OPTIONS)
+        : DEFAULT_TIKTOK_OPTIONS;
+    // The composer already guarantees a post is one video OR images, never both
+    // (see wouldMixVideoAndImages), so first-match is enough to classify it.
+    const tiktokMediaKind: TikTokMediaKind = state.media.some(
+        (item) => item.kind === 'video',
+    )
+        ? 'video'
+        : state.media.length > 0
+          ? 'photo'
+          : 'none';
+    // Only fetch for a TikTok destination — every other platform passes null and
+    // makes no request.
+    const creatorInfo = useCreatorInfo(
+        activeIsTikTok ? (activeAccount?.id ?? null) : null,
+    );
     const showConnectAccountPrompt = shouldShowConnectAccountPrompt(
         accounts,
         activeAccount,
@@ -868,6 +895,25 @@ export default function Composer({
                     </div>
                 )}
 
+                {/* TikTok Direct post/Draft switch — the same shape and slot as
+                the Instagram switch above, and never shown at the same time
+                (an account is one platform or the other). */}
+                {activeIsTikTok && activeAccount && (
+                    <div className="px-4 pt-2 pb-1 sm:px-[26px]">
+                        <TikTokPostModeToggle
+                            value={tiktokOptions.postMode}
+                            disabled={readOnly}
+                            onChange={(postMode) =>
+                                dispatch({
+                                    type: 'setTikTokOptions',
+                                    accountId: activeAccount.id,
+                                    patch: { postMode },
+                                })
+                            }
+                        />
+                    </div>
+                )}
+
                 {isInstagramStory ? (
                     /* Story: show the media itself (or an upload dropzone) in
                     place of the text editor — no caption box, no thread. */
@@ -1047,6 +1093,26 @@ export default function Composer({
                         cancelPending={mediaUploads.cancelPending}
                         onImageClick={openImage}
                         onVideoClick={openVideo}
+                    />
+                )}
+
+                {/* TikTok's compliance panel. Mounted after the toolbar and
+                before the editors (which are dialogs and contribute no layout),
+                so it sits directly above the schedule/submit row — the last
+                thing seen before posting, mirroring TikTok's own compose order. */}
+                {activeIsTikTok && activeAccount && (
+                    <TikTokOptionsPanel
+                        options={tiktokOptions}
+                        creator={creatorInfo}
+                        mediaKind={tiktokMediaKind}
+                        readOnly={readOnly}
+                        onChange={(patch) =>
+                            dispatch({
+                                type: 'setTikTokOptions',
+                                accountId: activeAccount.id,
+                                patch,
+                            })
+                        }
                     />
                 )}
 

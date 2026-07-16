@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Services\Posts;
 
 use App\Dto\Post\DraftData;
+use App\Dto\Post\TikTokOptionsData;
 use App\Enums\Platform;
 use App\Enums\PostFormat;
 use App\Enums\PostStatus;
+use App\Enums\TikTokPostMode;
 use App\Models\AccountSet;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
@@ -138,9 +140,10 @@ class DraftService
      * @param  array<string, bool>  $autoSplitByAccount
      * @param  array<string, array{segments: list<string>, media_ids: list<string>}|null>  $overrideByAccount
      * @param  array<string, PostFormat>  $formatByAccount
+     * @param  array<string, TikTokOptionsData|null>  $tiktokOptionsByAccount
      * @param  list<array{id: string, label: string, handles: array<string, string>}>  $mentions
      */
-    public function syncTargets(Post $post, array $accountIds, array $segments, array $autoSplitByAccount, array $overrideByAccount, array $formatByAccount = [], array $mentions = []): void
+    public function syncTargets(Post $post, array $accountIds, array $segments, array $autoSplitByAccount, array $overrideByAccount, array $formatByAccount = [], array $mentions = [], array $tiktokOptionsByAccount = []): void
     {
         $accounts = ConnectedAccount::withoutGlobalScopes()
             ->whereIn('id', $accountIds)
@@ -188,6 +191,26 @@ class DraftService
                 $account->maxTextLength(),
             )->sections;
 
+            // TikTok is the only platform with per-post publishing options. Only
+            // write them for a TikTok target, and only when the client actually
+            // sent them — otherwise an autosave from a non-TikTok tab would wipe
+            // choices the creator already made.
+            $tiktokColumns = [];
+            if ($account->platform === Platform::TikTok && array_key_exists($accountId, $tiktokOptionsByAccount)) {
+                // The null fallback mirrors the audit defaults exactly: no
+                // visibility chosen, and every interaction off (disable = true).
+                $tiktokColumns = ($tiktokOptionsByAccount[$accountId] ?? new TikTokOptionsData(
+                    postMode: TikTokPostMode::DirectPost,
+                    privacyLevel: null,
+                    disableComment: true,
+                    disableDuet: true,
+                    disableStitch: true,
+                    brandContentToggle: false,
+                    brandOrganicToggle: false,
+                    photoTitle: null,
+                ))->toColumns();
+            }
+
             PostTarget::updateOrCreate(
                 ['post_id' => $post->id, 'connected_account_id' => $accountId],
                 [
@@ -196,6 +219,7 @@ class DraftService
                     'format' => $format->value,
                     'content_override' => $override,
                     'auto_split' => $autoSplit,
+                    ...$tiktokColumns,
                 ],
             );
         }
@@ -229,12 +253,16 @@ class DraftService
             $autoSplitByAccount = [];
             $overrideByAccount = [];
             $formatByAccount = [];
+            $tiktokOptionsByAccount = [];
             foreach ($accountIds as $accountId) {
                 if ($data->hasAutoSplitFor($accountId)) {
                     $autoSplitByAccount[$accountId] = $data->autoSplitFor($accountId);
                 }
                 if ($data->hasFormatFor($accountId)) {
                     $formatByAccount[$accountId] = $data->formatFor($accountId);
+                }
+                if ($data->hasTikTokOptionsFor($accountId)) {
+                    $tiktokOptionsByAccount[$accountId] = $data->tiktokOptionsFor($accountId);
                 }
                 if ($data->hasOverrideFor($accountId)) {
                     $overrideByAccount[$accountId] = $data->overrideFor($accountId);
@@ -248,7 +276,7 @@ class DraftService
                 'account_set_id' => $this->scopedAccountSetId($post->workspace_id, $destination),
             ])->save();
 
-            $this->syncTargets($post, $accountIds, $data->segments, $autoSplitByAccount, $overrideByAccount, $formatByAccount, $post->mentions ?? []);
+            $this->syncTargets($post, $accountIds, $data->segments, $autoSplitByAccount, $overrideByAccount, $formatByAccount, $post->mentions ?? [], $tiktokOptionsByAccount);
             $this->attachMedia($post, $data->mediaIds);
 
             $post->touch();

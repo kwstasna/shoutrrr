@@ -70,4 +70,20 @@ return [
         'redirect' => env('THREADS_REDIRECT_URI'),
     ],
 
+    'tiktok' => [
+        // TikTok's developer portal labels this credential "Client key", and its
+        // OAuth endpoints take a `client_key` parameter rather than the usual
+        // `client_id` — hence the env var name, which matches what the operator
+        // is copying from the portal.
+        //
+        // The config key stays `client_id` on purpose: Platform::isConfigured()
+        // reads `{configKey}.client_id` generically for every platform, so naming
+        // this `client_key` would leave TikTok permanently "Not set up" with no
+        // error anywhere. TikTokConnectionController maps it back to `client_key`
+        // on the wire.
+        'client_id' => env('TIKTOK_CLIENT_KEY'),
+        'client_secret' => env('TIKTOK_CLIENT_SECRET'),
+        'redirect' => env('TIKTOK_REDIRECT_URI'),
+    ],
+
 ];

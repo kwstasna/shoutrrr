@@ -150,6 +150,17 @@ class TestConnectedAccountsSeeder extends Seeder
                 'access_token' => 'threads-test-token',
                 'token_expires_at' => $future,
             ],
+            [
+                'platform' => Platform::TikTok,
+                'handle' => '@test_tiktok',
+                'display_name' => 'Test TikTok',
+                // TikTok identifies a user to an app by open_id.
+                'remote_account_id' => 'tt-open-id-1',
+                'auth_method' => 'oauth',
+                'access_token' => 'tiktok-test-token',
+                'refresh_token' => 'tiktok-test-refresh',
+                'token_expires_at' => $future,
+            ],
         ];
     }
 }

@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Dto\Post\TikTokOptionsData;
 use App\Enums\ErrorKind;
 use App\Enums\MetricsStatus;
 use App\Enums\Platform;
 use App\Enums\PostFormat;
 use App\Enums\PostTargetStatus;
+use App\Enums\TikTokPostMode;
+use App\Enums\TikTokPrivacyLevel;
 use Carbon\CarbonImmutable;
 use Database\Factories\PostTargetFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -26,6 +29,17 @@ use Override;
  * @property Platform $platform
  * @property list<string> $sections
  * @property PostFormat $format
+ * @property TikTokPostMode $tiktok_post_mode
+ * @property TikTokPrivacyLevel|null $tiktok_privacy_level
+ * @property bool $tiktok_disable_comment
+ * @property bool $tiktok_disable_duet
+ * @property bool $tiktok_disable_stitch
+ * @property bool $tiktok_brand_content_toggle
+ * @property bool $tiktok_brand_organic_toggle
+ * @property int|null $tiktok_video_cover_timestamp_ms
+ * @property int|null $tiktok_photo_cover_index
+ * @property bool $tiktok_auto_add_music
+ * @property string|null $tiktok_photo_title
  * @property array{text?: string|null, media_ids?: list<string>}|null $content_override
  * @property bool $auto_split
  * @property PostTargetStatus $status
@@ -52,6 +66,17 @@ use Override;
     'platform',
     'sections',
     'format',
+    'tiktok_post_mode',
+    'tiktok_privacy_level',
+    'tiktok_disable_comment',
+    'tiktok_disable_duet',
+    'tiktok_disable_stitch',
+    'tiktok_brand_content_toggle',
+    'tiktok_brand_organic_toggle',
+    'tiktok_video_cover_timestamp_ms',
+    'tiktok_photo_cover_index',
+    'tiktok_auto_add_music',
+    'tiktok_photo_title',
     'content_override',
     'auto_split',
     'status',
@@ -78,12 +103,32 @@ class PostTarget extends Model
     use HasFactory, HasUuids;
 
     /**
-     * In-memory default so a target created without an explicit format still
-     * resolves to a feed post (Eloquent does not hydrate DB defaults after create).
+     * In-memory defaults so a target created without them still resolves sanely
+     * (Eloquent does not hydrate DB defaults after create — without this the
+     * booleans below read as null while their @property types promise bool).
+     *
+     * `tiktok_privacy_level` is deliberately absent: it must stay null until the
+     * creator picks one, because TikTok's guidelines forbid a pre-selected
+     * privacy default. The model's own defaults enforce that, not just a comment.
+     *
+     * The `tiktok_disable_*` defaults are TRUE for the same reason: TikTok
+     * requires its interaction toggles to start off, and the composer renders
+     * them as "Allow …" (allow = !disable). Defaulting them to false would tick
+     * every box on a fresh target. These must stay in step with the column
+     * defaults in the migration.
      *
      * @var array<string, mixed>
      */
-    protected $attributes = ['format' => 'feed'];
+    protected $attributes = [
+        'format' => 'feed',
+        'tiktok_post_mode' => 'direct_post',
+        'tiktok_disable_comment' => true,
+        'tiktok_disable_duet' => true,
+        'tiktok_disable_stitch' => true,
+        'tiktok_brand_content_toggle' => false,
+        'tiktok_brand_organic_toggle' => false,
+        'tiktok_auto_add_music' => false,
+    ];
 
     /**
      * @return array<string, string>
@@ -96,6 +141,16 @@ class PostTarget extends Model
             'status' => PostTargetStatus::class,
             'sections' => 'array',
             'format' => PostFormat::class,
+            'tiktok_post_mode' => TikTokPostMode::class,
+            'tiktok_privacy_level' => TikTokPrivacyLevel::class,
+            'tiktok_disable_comment' => 'boolean',
+            'tiktok_disable_duet' => 'boolean',
+            'tiktok_disable_stitch' => 'boolean',
+            'tiktok_brand_content_toggle' => 'boolean',
+            'tiktok_brand_organic_toggle' => 'boolean',
+            'tiktok_video_cover_timestamp_ms' => 'integer',
+            'tiktok_photo_cover_index' => 'integer',
+            'tiktok_auto_add_music' => 'boolean',
             'content_override' => 'array',
             'auto_split' => 'boolean',
             'remote_ids' => 'array',
@@ -112,6 +167,26 @@ class PostTarget extends Model
             'metrics_status' => MetricsStatus::class,
             'reply_fetched_at' => 'immutable_datetime',
         ];
+    }
+
+    /**
+     * This target's TikTok publishing options, read back off its own columns.
+     *
+     * Only meaningful for a TikTok target — every other platform's columns hold
+     * their inert defaults, exactly as `format` is inert for non-Instagram.
+     */
+    public function tiktokOptions(): TikTokOptionsData
+    {
+        return new TikTokOptionsData(
+            postMode: $this->tiktok_post_mode,
+            privacyLevel: $this->tiktok_privacy_level,
+            disableComment: $this->tiktok_disable_comment,
+            disableDuet: $this->tiktok_disable_duet,
+            disableStitch: $this->tiktok_disable_stitch,
+            brandContentToggle: $this->tiktok_brand_content_toggle,
+            brandOrganicToggle: $this->tiktok_brand_organic_toggle,
+            photoTitle: $this->tiktok_photo_title,
+        );
     }
 
     /**

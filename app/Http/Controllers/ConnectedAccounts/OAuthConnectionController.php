@@ -161,9 +161,10 @@ class OAuthConnectionController extends Controller
             || ! $resolved->isLaunched()
             || ! app(InstanceSettings::class)->platformAvailable($resolved)
             // Facebook/Instagram always go through the dedicated
-            // MetaConnectionController Page-selection flow, never this
+            // MetaConnectionController Page-selection flow, and TikTok through
+            // TikTokConnectionController (no Socialite driver), never this
             // generic single-step route — even once launched.
-            || $resolved->usesMetaConnectionFlow()
+            || $resolved->usesDedicatedConnectionFlow()
         ) {
             abort(404);
         }

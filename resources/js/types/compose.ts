@@ -1,3 +1,4 @@
+import type { TikTokOptionsWire } from '@/lib/compose/tiktok';
 import type { EditSettings } from '@/lib/image-editor/settings';
 
 export const BASE_TAB = '__base__';
@@ -9,7 +10,8 @@ export type PlatformName =
     | 'facebook'
     | 'instagram'
     | 'threads'
-    | 'discord';
+    | 'discord'
+    | 'tiktok';
 
 export type WorkspaceMention = {
     id: string;
@@ -116,6 +118,8 @@ export type TargetView = {
     content_override: { segments?: string[]; media_ids?: string[] } | null;
     auto_split: boolean;
     format: 'feed' | 'story';
+    /** Present only for TikTok targets; null everywhere else. */
+    tiktok_options: TikTokOptionsWire | null;
     issues: string[];
     status: TargetStatus;
     error_kind: string | null;

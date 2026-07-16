@@ -59,6 +59,15 @@ const LAYOUT: Record<PlatformName, Slot[]> = {
     // Discord webhooks only carry a summed message-reaction count; there's no
     // comment/repost data to show alongside it.
     discord: [{ key: 'likes', label: 'reactions' }],
+    // TikTok's own order under a video. These stay empty in practice until the
+    // metrics connector lands — TikTokMetricsConnector reports `unsupported`, so
+    // nothing populates them yet — but the layout has to exist for the type.
+    tiktok: [
+        { key: 'likes', label: 'likes' },
+        { key: 'comments', label: 'comments' },
+        { key: 'reposts', label: 'shares' },
+        { key: 'views', label: 'views' },
+    ],
 };
 
 /**

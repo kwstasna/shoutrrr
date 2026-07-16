@@ -17,6 +17,7 @@ it('defaults every platform to available', function () {
         'instagram' => true,
         'threads' => true,
         'discord' => true,
+        'tiktok' => true,
     ]);
 });
 
@@ -46,7 +47,7 @@ it('lets an owner view the platforms page', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('settings/instance-platforms')
-            ->has('platforms', 7));
+            ->has('platforms', count(Platform::cases())));
 });
 
 it('forbids a non-owner from the platforms page', function () {
@@ -70,6 +71,7 @@ it('persists platform toggles for an owner', function () {
                 'instagram' => true,
                 'threads' => true,
                 'discord' => true,
+                'tiktok' => true,
             ],
         ])
         ->assertRedirect();

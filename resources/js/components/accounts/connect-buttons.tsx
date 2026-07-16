@@ -7,6 +7,7 @@ import BlueskyOAuthController from '@/actions/App/Http/Controllers/ConnectedAcco
 import DiscordConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/DiscordConnectionController';
 import MetaConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/MetaConnectionController';
 import OAuthConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/OAuthConnectionController';
+import TikTokConnectionController from '@/actions/App/Http/Controllers/ConnectedAccounts/TikTokConnectionController';
 import InputError from '@/components/common/input-error';
 import { PlatformGlyph } from '@/components/common/platform-glyph';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ const SUPPORTED_PLATFORM_ICONS = [
     'instagram',
     'threads',
     'discord',
+    'tiktok',
 ];
 
 export function isSupportedPlatformIcon(
@@ -503,15 +505,22 @@ export function metaConnectLabel(capabilities: Capability[]): string {
 
 /**
  * Where a platform's connect flow lives: Facebook (and its folded-in Instagram)
- * go through the Meta Page-selection flow; everyone else shares the generic
- * OAuth redirect. Bluesky is handled separately — it opens a dialog, not a link.
+ * go through the Meta Page-selection flow, TikTok through its own controller (it
+ * has no Socialite driver); everyone else shares the generic OAuth redirect.
+ * Bluesky is handled separately — it opens a dialog, not a link.
  */
 function connectHref(capability: Capability): string {
-    return capability.platform === 'facebook'
-        ? MetaConnectionController.redirect.url()
-        : OAuthConnectionController.redirect.url({
-              platform: capability.platform,
-          });
+    if (capability.platform === 'facebook') {
+        return MetaConnectionController.redirect.url();
+    }
+
+    if (capability.platform === 'tiktok') {
+        return TikTokConnectionController.redirect.url();
+    }
+
+    return OAuthConnectionController.redirect.url({
+        platform: capability.platform,
+    });
 }
 
 /**
