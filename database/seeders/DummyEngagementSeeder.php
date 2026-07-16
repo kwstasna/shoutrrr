@@ -26,7 +26,8 @@ use Illuminate\Support\Str;
  * Creates 65+ inbound conversations across X / Bluesky / LinkedIn, with a mix
  * of unread, read, responded, archived, and multi-message threads.
  *
- * Run with: php artisan db:seed --class=DummyEngagementSeeder
+ * Run via `composer dev`, `php artisan db:seed` (local), or:
+ * php artisan db:seed --class=DummyEngagementSeeder
  */
 class DummyEngagementSeeder extends Seeder
 {
