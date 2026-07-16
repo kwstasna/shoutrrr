@@ -44,6 +44,24 @@ test('it skips accounts parked by a rate limit', function () {
     Queue::assertNothingPushed();
 });
 
+test('it skips disabled connected accounts', function () {
+    Queue::fake();
+
+    $account = ConnectedAccount::factory()->create([
+        'platform' => Platform::Bluesky,
+        'status' => ConnectedAccountStatus::Active,
+        'disabled_at' => now(),
+    ]);
+    PostTarget::factory()->for($account, 'account')->published()->create([
+        'platform' => Platform::Bluesky,
+        'posted_at' => now()->subHours(2),
+    ]);
+
+    $this->artisan('engagement:dispatch-due')->assertSuccessful();
+
+    Queue::assertNothingPushed();
+});
+
 test('it dispatches a fetch job for a recently-published target', function () {
     Queue::fake();
 

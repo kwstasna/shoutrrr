@@ -80,7 +80,7 @@ class FetchPostTargetReplies implements ReleasableJob, ShouldBeUnique, ShouldQue
         $account = $target->account()->withoutGlobalScopes()->first();
         $post = $target->post()->withoutGlobalScopes()->first();
 
-        if ($account === null || $post === null) {
+        if ($account === null || $account->isDisabled() || $post === null) {
             return;
         }
 

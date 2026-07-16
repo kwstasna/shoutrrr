@@ -154,7 +154,7 @@ class DummyEngagementSeeder extends Seeder
                 /** @var Platform $platform */
                 [$platform, $handle, $displayName] = $spec;
 
-                return ConnectedAccount::query()->firstOrCreate(
+                $account = ConnectedAccount::query()->firstOrCreate(
                     [
                         'workspace_id' => $workspace->id,
                         'platform' => $platform->value,
@@ -169,6 +169,10 @@ class DummyEngagementSeeder extends Seeder
                         'status' => ConnectedAccountStatus::Active->value,
                     ],
                 );
+
+                $account->forceFill(['disabled_at' => now()])->save();
+
+                return $account->refresh();
             },
         )->values();
     }

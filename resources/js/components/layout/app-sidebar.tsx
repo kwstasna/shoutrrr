@@ -113,7 +113,7 @@ function NestedSidebarNav({
                         render={
                             <SidebarMenuButton
                                 tooltip={label}
-                                isActive={active}
+                                isActive={collapsed && active}
                                 className="data-[popup-open]:bg-sidebar-accent"
                             />
                         }
@@ -160,10 +160,7 @@ function NestedSidebarNav({
             <SidebarMenuItem>
                 <CollapsibleTrigger
                     render={
-                        <SidebarMenuButton
-                            isActive={active}
-                            className="[&[data-panel-open]>svg:last-child]:rotate-180"
-                        />
+                        <SidebarMenuButton className="[&[data-panel-open]>svg:last-child]:rotate-180" />
                     }
                 >
                     <Icon aria-hidden="true" />

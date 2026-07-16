@@ -38,6 +38,8 @@ class DummyAnalyticsSeeder extends Seeder
 
     private const string POST_MARKER = '[dummy-analytics]';
 
+    private const string LEGACY_DISCORD_REMOTE_ACCOUNT_ID = 'discord-webhook-analytics-1';
+
     /**
      * @var list<string>
      */
@@ -64,7 +66,7 @@ class DummyAnalyticsSeeder extends Seeder
             ?? Workspace::query()->first();
 
         if ($workspace === null) {
-            $this->command?->warn('No workspace found — run DefaultUserSeeder first.');
+            $this->command->warn('No workspace found — run DefaultUserSeeder first.');
 
             return;
         }
@@ -81,7 +83,7 @@ class DummyAnalyticsSeeder extends Seeder
 
         $postCount = $this->seedPosts($workspace, $author, $accounts);
 
-        $this->command?->info(
+        $this->command->info(
             "Seeded analytics: {$metricRows} account metric rows across {$accounts->count()} accounts, {$postCount} published posts into '{$workspace->name}'.",
         );
     }
@@ -189,6 +191,7 @@ class DummyAnalyticsSeeder extends Seeder
                 // Local dummy charts always have series data, even when the live
                 // connector reports unsupported (LinkedIn account metrics).
                 $account->forceFill([
+                    'disabled_at' => now(),
                     'metrics_status' => MetricsStatus::Ok->value,
                     'metrics_captured_at' => now()->subHours(2),
                 ])->save();
@@ -333,6 +336,12 @@ class DummyAnalyticsSeeder extends Seeder
 
     private function clearPrevious(Workspace $workspace): void
     {
+        ConnectedAccount::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('platform', Platform::Discord->value)
+            ->where('remote_account_id', self::LEGACY_DISCORD_REMOTE_ACCOUNT_ID)
+            ->update(['disabled_at' => now()]);
+
         $posts = Post::query()
             ->where('workspace_id', $workspace->id)
             ->where('base_text', 'like', '%'.self::POST_MARKER.'%')

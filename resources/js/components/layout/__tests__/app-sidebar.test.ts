@@ -29,6 +29,19 @@ describe('settings sidebar active states', () => {
         expect(source).toContain('instanceActive');
         expect(source).toContain("item.key === 'general'");
     });
+
+    it('highlights only the active child while nested settings are expanded', () => {
+        const source = readFileSync(
+            resolve(
+                process.cwd(),
+                'resources/js/components/layout/app-sidebar.tsx',
+            ),
+            'utf8',
+        );
+
+        expect(source).toContain('isActive={collapsed && active}');
+        expect(source).not.toContain('isActive={active}');
+    });
 });
 
 describe('sidebar nav click targets', () => {

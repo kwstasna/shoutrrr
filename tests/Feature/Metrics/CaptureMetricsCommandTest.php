@@ -90,6 +90,30 @@ test('command skips disabled metric polling groups', function () {
     Queue::assertNothingPushed();
 });
 
+test('command skips disabled connected accounts', function () {
+    Queue::fake();
+
+    $account = ConnectedAccount::factory()->create([
+        'platform' => Platform::Bluesky,
+        'status' => ConnectedAccountStatus::Active,
+        'disabled_at' => Date::now(),
+        'metrics_captured_at' => null,
+    ]);
+
+    PostTarget::factory()->create([
+        'connected_account_id' => $account->id,
+        'platform' => Platform::Bluesky,
+        'status' => PostTargetStatus::Published,
+        'remote_id' => 'at://a/app.bsky.feed.post/disabled',
+        'posted_at' => Date::now()->subHours(2),
+        'metrics_captured_at' => null,
+    ]);
+
+    $this->artisan('metrics:capture')->assertSuccessful();
+
+    Queue::assertNothingPushed();
+});
+
 test('command skips only disabled metric platforms', function () {
     Queue::fake();
     app(InstanceSettings::class)->update([

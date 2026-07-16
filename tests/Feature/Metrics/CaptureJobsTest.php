@@ -123,3 +123,26 @@ test('jobs no-op when feature disabled', function () {
 
     expect($account->metrics()->count())->toBe(0);
 });
+
+test('jobs no-op for disabled accounts', function () {
+    Http::preventStrayRequests();
+
+    $account = ConnectedAccount::factory()->create([
+        'platform' => Platform::Bluesky,
+        'disabled_at' => now(),
+    ]);
+    $target = PostTarget::factory()->create([
+        'connected_account_id' => $account->id,
+        'platform' => Platform::Bluesky,
+        'remote_id' => 'at://a/app.bsky.feed.post/disabled',
+    ]);
+
+    CaptureAccountMetrics::dispatchSync($account);
+    CapturePostTargetMetrics::dispatchSync($target);
+
+    expect($account->metrics()->count())->toBe(0)
+        ->and($account->fresh()->metrics_captured_at)->toBeNull()
+        ->and($target->fresh()->metrics_captured_at)->toBeNull();
+
+    Http::assertNothingSent();
+});

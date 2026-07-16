@@ -74,7 +74,8 @@ test('dummy analytics seeder covers follower platforms and omits Discord', funct
                 ->sort()
                 ->values()
                 ->all(),
-        )->toEqual(collect($platforms)->sort()->values()->all());
+        )->toEqual(collect($platforms)->sort()->values()->all())
+        ->and($accounts->every->isDisabled())->toBeTrue();
 });
 
 test('dummy analytics seeder is idempotent for marked posts and account metrics', function (): void {
@@ -101,4 +102,18 @@ test('dummy analytics seeder is idempotent for marked posts and account metrics'
                 ->whereHas('account', fn ($q) => $q->where('workspace_id', $this->workspace->id))
                 ->count(),
         )->toBe($firstMetrics);
+});
+
+test('dummy analytics seeder disables the legacy demo Discord account only', function (): void {
+    $demoDiscord = ConnectedAccount::factory()->for($this->workspace)->discord()->create([
+        'remote_account_id' => 'discord-webhook-analytics-1',
+    ]);
+    $realDiscord = ConnectedAccount::factory()->for($this->workspace)->discord()->create([
+        'remote_account_id' => 'real-discord-webhook',
+    ]);
+
+    $this->seed(DummyAnalyticsSeeder::class);
+
+    expect($demoDiscord->fresh()->isDisabled())->toBeTrue()
+        ->and($realDiscord->fresh()->isDisabled())->toBeFalse();
 });

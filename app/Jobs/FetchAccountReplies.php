@@ -78,7 +78,7 @@ class FetchAccountReplies implements ReleasableJob, ShouldBeUnique, ShouldQueue
         // context, so a scoped fresh() would resolve to null.
         $account = ConnectedAccount::withoutGlobalScopes()->whereKey($this->account->getKey())->first();
 
-        if ($account === null) {
+        if ($account === null || $account->isDisabled()) {
             return;
         }
 

@@ -72,6 +72,7 @@ class DispatchDueReplyFetches extends Command
                     ->orWhere('reply_fetched_at', '<=', $staleBefore);
             })
             ->whereHas('account', fn ($q) => $q
+                ->whereNull('disabled_at')
                 ->where('status', ConnectedAccountStatus::Active->value)
                 ->where(fn ($q) => $q
                     ->whereNull('engagement_rate_limited_until')

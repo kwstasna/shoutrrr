@@ -77,7 +77,7 @@ class CapturePostTargetMetrics implements ShouldBeUnique, ShouldQueue
 
         $account = $target->account()->withoutGlobalScopes()->first();
 
-        if ($account === null) {
+        if ($account === null || $account->isDisabled()) {
             return;
         }
 

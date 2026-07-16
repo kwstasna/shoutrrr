@@ -82,3 +82,15 @@ test('a rate-limited batch parks the account for the retry-after window', functi
     $fresh = ConnectedAccount::withoutGlobalScopes()->find($account->id);
     expect($fresh->engagement_rate_limited_until->timestamp)->toBe(now()->addSeconds(90)->timestamp);
 });
+
+test('it does not fetch replies for a disabled account', function () {
+    Http::preventStrayRequests();
+
+    $account = xBatchAccountWithToken();
+    $account->forceFill(['disabled_at' => now()])->save();
+    xTargetFor($account, '500');
+
+    runAccountFetch($account);
+
+    Http::assertNothingSent();
+});

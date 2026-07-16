@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\ReplyStatus;
 use App\Enums\WorkspaceRole;
+use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostTargetReply;
 use App\Models\User;
@@ -53,6 +54,11 @@ test('dummy engagement seeder creates sixty plus inbox conversations', function 
                 ->where('base_text', 'like', '%[dummy-engagement]%')
                 ->count(),
         )->toBeGreaterThan(0);
+
+    expect(ConnectedAccount::query()
+        ->where('workspace_id', $this->workspace->id)
+        ->whereNull('disabled_at')
+        ->doesntExist())->toBeTrue();
 });
 
 test('dummy engagement seeder is idempotent for the marked posts', function (): void {

@@ -71,7 +71,7 @@ class CaptureAccountMetrics implements ShouldBeUnique, ShouldQueue
 
         $account = $this->account->fresh();
 
-        if ($account === null) {
+        if ($account === null || $account->isDisabled()) {
             return;
         }
 

@@ -66,6 +66,18 @@ test('the job inserts fetched replies with the workspace id', function () {
     expect($target->fresh()->reply_fetched_at)->not->toBeNull();
 });
 
+test('the job does not fetch replies for a disabled account', function () {
+    $target = targetWithPost();
+    $target->account->forceFill(['disabled_at' => now()])->save();
+
+    $registry = Mockery::mock(EngagementConnectorRegistry::class);
+    $registry->shouldNotReceive('for');
+
+    (new FetchPostTargetReplies($target))->handle($registry, app(TokenManager::class), app(ReplyPersister::class));
+
+    expect($target->fresh()->reply_fetched_at)->toBeNull();
+});
+
 test('re-running the job does not duplicate replies', function () {
     $target = targetWithPost();
     $replies = [new FetchedReply('at://r1', 'c1', 'at://root', 'fan', 'Fan', null, 'nice', CarbonImmutable::now())];
