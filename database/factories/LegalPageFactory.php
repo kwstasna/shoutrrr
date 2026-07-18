@@ -23,7 +23,7 @@ class LegalPageFactory extends Factory
     {
         return [
             'workspace_id' => Workspace::factory(),
-            'slug' => Str::slug(fake()->unique()->words(2, true)).'-'.Str::lower(Str::random(5)),
+            'slug' => fake()->unique()->slug(2, false).'-'.Str::lower(Str::random(5)),
             'terms_body' => "# Terms\n\nBy using this service you agree to the following terms.",
             'terms_published_at' => now(),
             'privacy_body' => "# Privacy\n\nWe respect your privacy and only collect what we need.",
