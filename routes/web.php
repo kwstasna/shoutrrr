@@ -47,6 +47,6 @@ require __DIR__.'/engagement.php';
 // out of search engines and the throttle guards against abuse.
 Route::get('{slug}/{document}', [PublicLegalPageController::class, 'show'])
     ->middleware([NoIndex::class, 'throttle:30,1'])
-    ->where('slug', '[a-z0-9][a-z0-9-]{1,62}')
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->where('document', 'terms|privacy')
     ->name('legal.show');

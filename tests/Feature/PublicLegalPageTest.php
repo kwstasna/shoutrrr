@@ -8,7 +8,7 @@ use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
 
 test('serves a published terms page with a non-indexable, non-identifying payload', function (): void {
-    LegalPage::factory()->create([
+    $page = LegalPage::factory()->create([
         'slug' => 'acme-legal',
         'terms_body' => "# Terms\n\nBy using this service you agree to the following terms.",
     ]);
@@ -16,14 +16,15 @@ test('serves a published terms page with a non-indexable, non-identifying payloa
     $this->get('/acme-legal/terms')
         ->assertOk()
         ->assertHeader('X-Robots-Tag', 'noindex, nofollow')
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn ($assert) => $assert
             ->component('legal/show')
             ->has('page', 4)
             ->has('page', fn ($prop) => $prop
                 ->where('type', 'terms')
                 ->where('title', 'Terms of Service')
                 ->where('content_html', fn ($html) => str_contains((string) $html, 'agree to the following terms'))
-                ->where('updated_at', fn ($value) => is_string($value) && $value !== '')
+                // The public "last updated" date is the document's publish timestamp.
+                ->where('updated_at', $page->terms_published_at->toIso8601String())
             )
         );
 });

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\WorkspaceRole;
 use App\Models\LegalPage;
 use App\Models\User;
 use App\Models\Workspace;
@@ -23,13 +24,54 @@ function legalWorkspaceOwner(): array
     return [$workspace, $owner];
 }
 
-test('owner can view the legal settings page', function (): void {
-    [, $owner] = legalWorkspaceOwner();
+test('owner can view the legal settings page with the current values', function (): void {
+    [$workspace, $owner] = legalWorkspaceOwner();
+
+    LegalPage::factory()->create([
+        'workspace_id' => $workspace->id,
+        'slug' => 'acme-legal',
+        'terms_body' => '# Terms',
+    ]);
 
     $this->actingAs($owner)
         ->get(route('settings.workspace.legal'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('settings/workspace/legal'));
+        ->assertInertia(fn ($page) => $page
+            ->component('settings/workspace/legal')
+            ->where('legal.slug', 'acme-legal')
+            ->where('legal.terms.body', '# Terms')
+            ->where('legal.terms.published', true)
+            ->where('legal.privacy.published', true));
+});
+
+test('an admin can view and update the legal pages', function (): void {
+    $workspace = Workspace::factory()->create();
+    $admin = User::factory()->create(['current_workspace_id' => $workspace->id]);
+    WorkspaceMembership::factory()->create([
+        'workspace_id' => $workspace->id,
+        'user_id' => $admin->id,
+        'role' => WorkspaceRole::Admin,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('settings.workspace.legal'))
+        ->assertOk();
+
+    $this->actingAs($admin)
+        ->put(route('settings.workspace.legal.update'), [
+            'slug' => 'admin-legal',
+            'terms_body' => 'Terms content',
+            'privacy_body' => 'Privacy content',
+            'terms_published' => true,
+            'privacy_published' => true,
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('legal_pages', [
+        'workspace_id' => $workspace->id,
+        'slug' => 'admin-legal',
+    ]);
 });
 
 test('a plain member cannot view the legal settings page', function (): void {
@@ -103,29 +145,53 @@ test('publishing a document with a blank body fails validation on that field', f
         ->assertJsonValidationErrors('terms_body');
 });
 
-test('unpublishing a document clears its publish timestamp', function (): void {
-    [$workspace, $owner] = legalWorkspaceOwner();
+test('a body longer than the configured maximum is rejected', function (): void {
+    [, $owner] = legalWorkspaceOwner();
 
-    LegalPage::factory()->create([
-        'workspace_id' => $workspace->id,
-        'slug' => 'company-legal',
-    ]);
+    $max = (int) config('kit.legal.max_body_length');
 
     $this->actingAs($owner)
-        ->put(route('settings.workspace.legal.update'), [
+        ->putJson(route('settings.workspace.legal.update'), [
             'slug' => 'company-legal',
-            'terms_body' => 'Terms content',
+            'terms_body' => str_repeat('a', $max + 1),
             'privacy_body' => 'Privacy content',
             'terms_published' => false,
             'privacy_published' => false,
         ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('terms_body');
+});
+
+test('unpublishing one document leaves the other untouched', function (): void {
+    [$workspace, $owner] = legalWorkspaceOwner();
+
+    $original = CarbonImmutable::create(2026, 1, 1, 12, 0, 0);
+
+    $page = LegalPage::factory()->create([
+        'workspace_id' => $workspace->id,
+        'slug' => 'company-legal',
+        'terms_published_at' => $original,
+        'privacy_published_at' => $original,
+    ]);
+
+    $this->travelTo(CarbonImmutable::create(2026, 6, 15, 8, 30, 0));
+
+    $this->actingAs($owner)
+        ->put(route('settings.workspace.legal.update'), [
+            'slug' => 'company-legal',
+            'terms_body' => $page->terms_body,      // unchanged
+            'privacy_body' => $page->privacy_body,  // unchanged
+            'terms_published' => false,
+            'privacy_published' => true,
+        ])
         ->assertSessionHasNoErrors()
         ->assertRedirect();
 
-    $page = LegalPage::withoutGlobalScopes()->where('workspace_id', $workspace->id)->first();
+    $this->travelBack();
+    $page->refresh();
 
     expect($page->terms_published_at)->toBeNull()
-        ->and($page->privacy_published_at)->toBeNull();
+        ->and($page->privacy_published_at->format('Y-m-d H:i:s'))->toBe('2026-01-01 12:00:00');
 });
 
 test('a slug already owned by another workspace is rejected', function (): void {
@@ -169,12 +235,12 @@ test('reserved and malformed slugs are rejected', function (string $slug): void 
     'too short' => ['ab'],
 ]);
 
-test('re-saving a published document preserves its original publish timestamp', function (): void {
+test('re-saving a published document with unchanged content preserves its date', function (): void {
     [$workspace, $owner] = legalWorkspaceOwner();
 
     $original = CarbonImmutable::create(2026, 1, 1, 12, 0, 0);
 
-    LegalPage::factory()->create([
+    $page = LegalPage::factory()->create([
         'workspace_id' => $workspace->id,
         'slug' => 'company-legal',
         'terms_published_at' => $original,
@@ -186,8 +252,8 @@ test('re-saving a published document preserves its original publish timestamp', 
     $this->actingAs($owner)
         ->put(route('settings.workspace.legal.update'), [
             'slug' => 'company-legal',
-            'terms_body' => 'Updated terms content',
-            'privacy_body' => 'Updated privacy content',
+            'terms_body' => $page->terms_body,      // unchanged
+            'privacy_body' => $page->privacy_body,  // unchanged
             'terms_published' => true,
             'privacy_published' => true,
         ])
@@ -195,9 +261,41 @@ test('re-saving a published document preserves its original publish timestamp', 
         ->assertRedirect();
 
     $this->travelBack();
-
-    $page = LegalPage::withoutGlobalScopes()->where('workspace_id', $workspace->id)->first();
+    $page->refresh();
 
     expect($page->terms_published_at->format('Y-m-d H:i:s'))->toBe('2026-01-01 12:00:00')
+        ->and($page->privacy_published_at->format('Y-m-d H:i:s'))->toBe('2026-01-01 12:00:00');
+});
+
+test('editing a published document advances its last-updated date', function (): void {
+    [$workspace, $owner] = legalWorkspaceOwner();
+
+    $original = CarbonImmutable::create(2026, 1, 1, 12, 0, 0);
+
+    $page = LegalPage::factory()->create([
+        'workspace_id' => $workspace->id,
+        'slug' => 'company-legal',
+        'terms_published_at' => $original,
+        'privacy_published_at' => $original,
+    ]);
+
+    $this->travelTo(CarbonImmutable::create(2026, 6, 15, 8, 30, 0));
+
+    $this->actingAs($owner)
+        ->put(route('settings.workspace.legal.update'), [
+            'slug' => 'company-legal',
+            'terms_body' => 'Materially rewritten terms.',  // changed
+            'privacy_body' => $page->privacy_body,          // unchanged
+            'terms_published' => true,
+            'privacy_published' => true,
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $this->travelBack();
+    $page->refresh();
+
+    // The edited document's date advances; the untouched one is preserved.
+    expect($page->terms_published_at->format('Y-m-d H:i:s'))->toBe('2026-06-15 08:30:00')
         ->and($page->privacy_published_at->format('Y-m-d H:i:s'))->toBe('2026-01-01 12:00:00');
 });

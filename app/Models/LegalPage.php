@@ -88,8 +88,8 @@ class LegalPage extends Model
     protected function casts(): array
     {
         return [
-            'terms_published_at' => 'datetime',
-            'privacy_published_at' => 'datetime',
+            'terms_published_at' => 'immutable_datetime',
+            'privacy_published_at' => 'immutable_datetime',
         ];
     }
 }

@@ -9,8 +9,10 @@ use App\Http\Requests\Settings\UpdateLegalPageRequest;
 use App\Models\LegalPage;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -54,42 +56,73 @@ class LegalPagesController extends Controller
         $workspace = $user->currentWorkspace;
         abort_if($workspace === null, 404);
 
-        // Load the current row first so we can preserve each document's original
-        // publish timestamp when it stays published across the save.
+        // Load the current row first so we can compare bodies and preserve each
+        // document's published date when its content is unchanged.
         $existing = LegalPage::query()->where('workspace_id', $workspace->id)->first();
         $validated = $request->validated();
 
-        LegalPage::query()->updateOrCreate(
-            ['workspace_id' => $workspace->id],
-            [
-                'slug' => $validated['slug'],
-                'terms_body' => $validated['terms_body'] ?? null,
-                'privacy_body' => $validated['privacy_body'] ?? null,
-                'terms_published_at' => $this->resolvePublishTimestamp(
-                    $request->boolean('terms_published'),
-                    $existing?->terms_published_at,
-                ),
-                'privacy_published_at' => $this->resolvePublishTimestamp(
-                    $request->boolean('privacy_published'),
-                    $existing?->privacy_published_at,
-                ),
-            ],
-        );
+        $termsBody = $this->normalizeBody($validated['terms_body'] ?? null);
+        $privacyBody = $this->normalizeBody($validated['privacy_body'] ?? null);
+
+        $attributes = [
+            'slug' => $validated['slug'],
+            'terms_body' => $termsBody,
+            'privacy_body' => $privacyBody,
+            'terms_published_at' => $this->resolvePublishTimestamp(
+                $request->boolean('terms_published'),
+                $termsBody !== $existing?->terms_body,
+                $existing?->terms_published_at,
+            ),
+            'privacy_published_at' => $this->resolvePublishTimestamp(
+                $request->boolean('privacy_published'),
+                $privacyBody !== $existing?->privacy_body,
+                $existing?->privacy_published_at,
+            ),
+        ];
+
+        try {
+            if ($existing !== null) {
+                $existing->update($attributes);
+            } else {
+                LegalPage::query()->create($attributes + ['workspace_id' => $workspace->id]);
+            }
+        } catch (UniqueConstraintViolationException) {
+            // Two workspaces can pass the unique-slug check and then race to
+            // insert; the loser hits the DB constraint. Surface it as a normal
+            // validation error instead of a 500.
+            throw ValidationException::withMessages([
+                'slug' => 'That slug is already in use. Please choose another.',
+            ]);
+        }
 
         return back()->with('success', 'Legal pages saved.');
     }
 
     /**
-     * Decide the stored publish timestamp for a document. Publishing keeps the
-     * existing "published at" date when there is one (so re-saving does not move
-     * the effective date) and stamps now on first publish; unpublishing clears it.
+     * Decide the stored publish timestamp for a document, which doubles as the
+     * "last updated" date shown on the public page. Unpublishing clears it;
+     * publishing keeps the existing date only while the content is unchanged, and
+     * otherwise stamps now — so the public date advances on first publish and
+     * whenever the body is edited.
      */
-    private function resolvePublishTimestamp(bool $published, ?CarbonInterface $current): ?CarbonInterface
+    private function resolvePublishTimestamp(bool $published, bool $bodyChanged, ?CarbonInterface $current): ?CarbonInterface
     {
         if (! $published) {
             return null;
         }
 
-        return $current ?? now();
+        if ($current !== null && ! $bodyChanged) {
+            return $current;
+        }
+
+        return now();
+    }
+
+    /**
+     * Collapse an empty string to null so unpublished drafts store consistently.
+     */
+    private function normalizeBody(?string $body): ?string
+    {
+        return ($body === null || $body === '') ? null : $body;
     }
 }

@@ -195,7 +195,8 @@ export default function LegalPages({ legal }: Props) {
             ? `${origin}/${savedSlug}/privacy`
             : null;
 
-    const slugPreview = form.data.slug || 'your-slug';
+    // Preview the normalized slug (the server lowercases it on save).
+    const slugPreview = form.data.slug.toLowerCase() || 'your-slug';
 
     return (
         <>
