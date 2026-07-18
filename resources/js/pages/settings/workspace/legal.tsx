@@ -26,7 +26,20 @@ import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Switch } from '@/components/ui/switch';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { cn } from '@/lib/utils';
 import type { LegalPageType, LegalSettings } from '@/types/legal';
+
+/** Whether a rich-text body has any visible text (SSR-safe). */
+function documentHasText(html: string): boolean {
+    const text =
+        typeof document !== 'undefined'
+            ? (Object.assign(document.createElement('div'), { innerHTML: html })
+                  .textContent ?? '')
+            : html.replace(/<[^>]*>/g, '');
+
+    // JS \s matches regular and non-breaking whitespace, so \S is any real text.
+    return /\S/.test(text);
+}
 
 type Props = {
     legal: LegalSettings;
@@ -112,6 +125,7 @@ function LegalDocumentCard({
 }) {
     const bodyId = `${type}-body`;
     const switchId = `${type}-published`;
+    const hasContent = documentHasText(body);
 
     return (
         <Card>
@@ -124,20 +138,27 @@ function LegalDocumentCard({
                     preserved.
                 </CardDescription>
                 <CardAction>
-                    <Label htmlFor={switchId} className="gap-2">
-                        <span className="text-xs text-muted-foreground">
-                            {published ? 'Published' : 'Draft'}
-                        </span>
-                        <Switch
-                            id={switchId}
-                            checked={published}
-                            onCheckedChange={onPublishedChange}
-                            disabled={disabled}
+                    <span
+                        className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                            published
+                                ? 'border-primary/30 bg-primary/10 text-primary'
+                                : 'border-border bg-muted text-muted-foreground',
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                'size-1.5 rounded-full',
+                                published
+                                    ? 'bg-primary'
+                                    : 'bg-muted-foreground/50',
+                            )}
                         />
-                    </Label>
+                        {published ? 'Public' : 'Draft'}
+                    </span>
                 </CardAction>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
                 <RichTextEditor
                     id={bodyId}
                     ariaLabel={`${title} content`}
@@ -148,6 +169,31 @@ function LegalDocumentCard({
                     placeholder={`Describe your ${title.toLowerCase()} here, or paste it in.`}
                 />
                 <InputError message={error} />
+
+                {/*
+                 * Publishing is an explicit, clearly-labeled action rather than a
+                 * bare switch, so it is obvious the page stays private until it is
+                 * turned on. It is disabled until there is content to publish.
+                 */}
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-muted/20 px-4 py-3">
+                    <div className="space-y-0.5">
+                        <Label htmlFor={switchId} className="font-medium">
+                            Publish this page
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            {hasContent
+                                ? 'Turn on to make it publicly visible. Off keeps it a private draft.'
+                                : 'Add content above, then turn this on to publish.'}
+                        </p>
+                    </div>
+                    <Switch
+                        id={switchId}
+                        checked={published}
+                        onCheckedChange={onPublishedChange}
+                        disabled={disabled || (!hasContent && !published)}
+                    />
+                </div>
+
                 {publicUrl && <PublicUrlRow url={publicUrl} />}
             </CardContent>
         </Card>
