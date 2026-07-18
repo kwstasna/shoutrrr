@@ -56,9 +56,17 @@ function PublicUrlRow({ url }: { url: string }) {
 
     return (
         <div className="flex items-center gap-1 rounded-2xl border border-border bg-muted/30 px-3 py-1.5">
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                {url}
-            </span>
+            {/* The URL itself is the link — one tap opens the live page in a new tab. */}
+            <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open the live page in a new tab"
+                className="group inline-flex min-w-0 flex-1 items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+            >
+                <span className="truncate">{url}</span>
+                <ExternalLink className="size-3.5 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
+            </a>
             <Button
                 type="button"
                 variant="ghost"
@@ -72,18 +80,6 @@ function PublicUrlRow({ url }: { url: string }) {
                     <Copy className="size-4" />
                 )}
                 {copied ? 'Copied' : 'Copy'}
-            </Button>
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                aria-label="Open page in a new tab"
-                render={
-                    <a href={url} target="_blank" rel="noopener noreferrer" />
-                }
-            >
-                <ExternalLink className="size-4" />
             </Button>
         </div>
     );
