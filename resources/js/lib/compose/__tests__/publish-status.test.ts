@@ -24,6 +24,7 @@ function target(id: string, status: TargetStatus): TargetView {
         sections: ['x'],
         content_override: null,
         auto_split: true,
+        tiktok_options: null,
         issues: [],
         status,
         error_kind: null,

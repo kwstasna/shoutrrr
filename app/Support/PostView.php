@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Enums\Platform;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
 use App\Models\PostMedia;
@@ -43,6 +44,12 @@ final class PostView
                     'sections' => $target->sections,
                     'content_override' => $target->content_override,
                     'auto_split' => $target->auto_split,
+                    // Only TikTok targets carry these; the composer treats their
+                    // presence as the discriminator, so a null here keeps every
+                    // other platform's target out of tiktokOptionsByAccount.
+                    'tiktok_options' => $target->platform === Platform::TikTok
+                        ? $target->tiktokOptions()->toView()
+                        : null,
                     'status' => $target->status->value,
                     'error_kind' => $target->error_kind?->value,
                     'error_message' => $target->error_message,

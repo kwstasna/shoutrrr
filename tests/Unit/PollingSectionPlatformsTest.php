@@ -2,16 +2,23 @@
 
 use App\Enums\Platform;
 
-test('post metrics is supported by every platform except LinkedIn', function () {
+// TikTok joins LinkedIn here until its metrics connector lands: correlating a
+// published post to its stats depends on an id mapping TikTok never documents.
+test('post metrics is supported by every platform except LinkedIn and TikTok', function () {
     foreach (Platform::cases() as $platform) {
-        expect($platform->supportsPostMetrics())->toBe($platform !== Platform::LinkedIn);
+        expect($platform->supportsPostMetrics())
+            ->toBe($platform !== Platform::LinkedIn && $platform !== Platform::TikTok);
     }
 });
 
-test('account metrics is supported by every platform except LinkedIn and Discord', function () {
+test('account metrics is supported by every platform except LinkedIn, Discord and TikTok', function () {
     foreach (Platform::cases() as $platform) {
         expect($platform->supportsAccountMetrics())
-            ->toBe($platform !== Platform::LinkedIn && $platform !== Platform::Discord);
+            ->toBe(
+                $platform !== Platform::LinkedIn
+                && $platform !== Platform::Discord
+                && $platform !== Platform::TikTok
+            );
     }
 });
 

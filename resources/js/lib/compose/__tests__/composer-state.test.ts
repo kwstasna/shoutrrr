@@ -46,6 +46,7 @@ function hydrated(): ReturnType<typeof composerReducer> {
                 sections: ['hello'],
                 content_override: null,
                 auto_split: true,
+                tiktok_options: null,
                 issues: [],
                 status: 'pending',
                 error_kind: null,
@@ -63,6 +64,7 @@ function hydrated(): ReturnType<typeof composerReducer> {
                 sections: ['hello'],
                 content_override: null,
                 auto_split: true,
+                tiktok_options: null,
                 issues: [],
                 status: 'pending',
                 error_kind: null,
@@ -645,6 +647,7 @@ describe('buildPutBody', () => {
         expect(body.targets[0]).toEqual({
             connected_account_id: 'a1',
             auto_split: true,
+            tiktok_options: null,
             content_override: null,
         });
         expect(body.targets[0].content_override).toBeNull();

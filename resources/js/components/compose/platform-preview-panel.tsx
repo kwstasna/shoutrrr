@@ -17,6 +17,8 @@ import { LinkedText } from '@/lib/linked-text';
 import { cn } from '@/lib/utils';
 import type { PlatformName } from '@/types/compose';
 
+import { TikTokPreview } from './tiktok-preview';
+
 const PLATFORM_LABELS: Record<PlatformName, string> = {
     x: 'X',
     bluesky: 'Bluesky',
@@ -25,6 +27,7 @@ const PLATFORM_LABELS: Record<PlatformName, string> = {
     instagram: 'Instagram',
     threads: 'Threads',
     discord: 'Discord',
+    tiktok: 'TikTok',
 };
 
 const PLATFORM_GLYPH_CLASS: Record<PlatformName, string> = {
@@ -35,6 +38,7 @@ const PLATFORM_GLYPH_CLASS: Record<PlatformName, string> = {
     instagram: 'text-[#E4405F]',
     threads: 'text-foreground',
     discord: 'text-[#5865F2]',
+    tiktok: 'text-foreground',
 };
 
 function initials(name: string): string {
@@ -238,6 +242,8 @@ export function PlatformPreviewPanel({
                         </p>
                     </div>
                 </div>
+            ) : preview.platform === 'tiktok' ? (
+                <TikTokPreview preview={preview} />
             ) : (
                 <div className="p-4">
                     <div className="rounded-3xl border border-border bg-background px-4 pt-4 shadow-xs">

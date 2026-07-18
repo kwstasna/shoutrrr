@@ -39,4 +39,7 @@ final class UsageOperation
     public const string MEDIA_UPLOAD = 'media_upload';
 
     public const string MEDIA_STATUS_POLL = 'media_status_poll';
+
+    /** TikTok's Query Creator Info, which every direct post must call before publishing. */
+    public const string CREATOR_INFO_QUERY = 'creator_info_query';
 }

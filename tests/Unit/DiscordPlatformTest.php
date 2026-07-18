@@ -19,9 +19,12 @@ test('only discord supports the webhook connect flow', function () {
     }
 });
 
-test('discord is the only platform without engagement support', function () {
+// Discord (write-only webhooks) and TikTok (no API reads comments on a creator's
+// own organic posts) are the two platforms with no engagement connector.
+test('discord and tiktok are the platforms without engagement support', function () {
     foreach (Platform::cases() as $platform) {
-        expect($platform->supportsEngagement())->toBe($platform !== Platform::Discord);
+        expect($platform->supportsEngagement())
+            ->toBe($platform !== Platform::Discord && $platform !== Platform::TikTok);
     }
 });
 

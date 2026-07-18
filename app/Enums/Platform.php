@@ -15,6 +15,7 @@ enum Platform: string
     case Instagram = 'instagram';
     case Threads = 'threads';
     case Discord = 'discord';
+    case TikTok = 'tiktok';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum Platform: string
             self::Instagram => 'Instagram',
             self::Threads => 'Threads',
             self::Discord => 'Discord',
+            self::TikTok => 'TikTok',
         };
     }
 
@@ -38,6 +40,11 @@ enum Platform: string
             self::Facebook, self::Instagram => 'facebook',
             self::Threads => 'threads',
             self::Discord => null,
+            // TikTok is an OAuth platform with no first-party Socialite driver, and
+            // its endpoints take `client_key` rather than the conventional
+            // `client_id`. It authenticates through TikTokConnectionController
+            // instead — see usesDedicatedConnectionFlow().
+            self::TikTok => null,
         };
     }
 
@@ -66,6 +73,17 @@ enum Platform: string
             self::Instagram => ['instagram_basic', 'instagram_content_publish', 'instagram_manage_comments', 'instagram_manage_insights', 'instagram_manage_engagement', 'pages_show_list', 'business_management'],
             self::Threads => ['threads_basic', 'threads_content_publish', 'threads_manage_replies', 'threads_manage_insights'],
             self::Discord => [],
+            // Deliberately minimal. TikTok's app review requires a written
+            // justification for every requested scope and rejects ones the app
+            // does not visibly use, so we ask only for what ships today:
+            // `video.publish` (Direct Post) + `video.upload` (draft to inbox) —
+            // both, because the composer lets the user pick per post — plus
+            // `user.info.basic` (open_id/avatar/display_name) and
+            // `user.info.profile` (username, which is the account handle; it is
+            // NOT covered by user.info.basic). `user.info.stats` and `video.list`
+            // are intentionally omitted until the metrics connector lands; adding
+            // them later costs a reconnect, which is the deliberate trade.
+            self::TikTok => ['user.info.basic', 'user.info.profile', 'video.publish', 'video.upload'],
         };
     }
 
@@ -78,12 +96,35 @@ enum Platform: string
             self::Facebook, self::Instagram => 'services.facebook',
             self::Threads => 'services.threads',
             self::Discord => null,
+            self::TikTok => 'services.tiktok',
         };
     }
 
+    /**
+     * Whether this platform connects via an OAuth authorization-code flow.
+     *
+     * Socialite-backed platforms derive this from their driver. TikTok is OAuth
+     * too but ships no Socialite driver, so it must be named explicitly rather
+     * than inferred — otherwise it would advertise itself as non-OAuth.
+     */
     public function supportsOAuth(): bool
     {
-        return $this->socialiteDriver() !== null;
+        return $this->socialiteDriver() !== null || $this === self::TikTok;
+    }
+
+    /**
+     * Whether a dedicated controller owns this platform's connect flow instead of
+     * the generic Socialite-driven OAuthConnectionController. Facebook/Instagram
+     * need a Page-selection step (MetaConnectionController); TikTok has no
+     * Socialite driver and authenticates with `client_key`
+     * (TikTokConnectionController). The generic controller must 404 these.
+     */
+    public function usesDedicatedConnectionFlow(): bool
+    {
+        return match ($this) {
+            self::Facebook, self::Instagram, self::TikTok => true,
+            self::X, self::Bluesky, self::LinkedIn, self::Threads, self::Discord => false,
+        };
     }
 
     public function supportsAppPassword(): bool
@@ -101,30 +142,44 @@ enum Platform: string
      * Discord webhooks are write-only — they can't receive replies — so Discord
      * has no engagement connector and must never be scheduled for reply fetching
      * (see the gate in InstanceSettings::engagementPollingEnabled, Task 6).
+     *
+     * TikTok exposes no API for reading comments on a creator's own organic posts
+     * (the Display API returns video metadata only), so it has no engagement
+     * connector either.
      */
     public function supportsEngagement(): bool
     {
-        return $this !== self::Discord;
+        return $this !== self::Discord && $this !== self::TikTok;
     }
 
     /**
      * Whether this platform's metrics connector returns real post-level metrics.
      * LinkedIn's post-metrics connector returns `unsupported`, so it has no
      * post-metrics polling to configure.
+     *
+     * TikTok is unsupported pending a spike: the Content Posting API returns
+     * `publicaly_available_post_id`, and nothing in TikTok's docs states that it
+     * is the same identifier `/v2/video/query/` accepts as `filters.video_ids`.
+     * Until that correlation is proven against a real published post, a post-
+     * metrics connector would be built on an inference.
      */
     public function supportsPostMetrics(): bool
     {
-        return $this !== self::LinkedIn;
+        return $this !== self::LinkedIn && $this !== self::TikTok;
     }
 
     /**
      * Whether this platform's metrics connector returns real account-level
      * metrics. LinkedIn and Discord return `unsupported` (LinkedIn has no
      * account-metrics API here; a Discord webhook cannot read server stats).
+     *
+     * TikTok's follower/likes counts are documented and available, but they need
+     * the `user.info.stats` scope, which scopes() deliberately does not request
+     * yet — so the connector reports `unsupported` until metrics ships.
      */
     public function supportsAccountMetrics(): bool
     {
-        return $this !== self::LinkedIn && $this !== self::Discord;
+        return $this !== self::LinkedIn && $this !== self::Discord && $this !== self::TikTok;
     }
 
     /**
@@ -187,8 +242,14 @@ enum Platform: string
      * connecting must stay disabled even when credentials are configured. Flip a
      * platform to `true` when its publish/engagement/metrics connectors land.
      *
-     * All seven platforms (X, Bluesky, LinkedIn, Facebook, Instagram, Threads,
-     * Discord) are launched.
+     * All eight platforms (X, Bluesky, LinkedIn, Facebook, Instagram, Threads,
+     * Discord, TikTok) are launched.
+     *
+     * Launched is not the same as proven: TikTok's connectors are complete but
+     * have only ever run against faked HTTP. An instance without TikTok
+     * credentials still shows it as "Not set up" (see isConfigured), and an owner
+     * can freeze it instance-wide via platformsEnabled — so this being true only
+     * means "reachable once configured", not "verified against the live API".
      */
     public function isLaunched(): bool
     {
@@ -262,8 +323,8 @@ enum Platform: string
 
     /**
      * The primary length budget, in each platform's native counting unit
-     * (X: UTF-16 code units, Bluesky: graphemes; LinkedIn, Facebook, Instagram,
-     * and Threads: characters via mb_strlen).
+     * (X and TikTok: UTF-16 code units, Bluesky: graphemes; LinkedIn, Facebook,
+     * Instagram, and Threads: characters via mb_strlen).
      */
     public function maxLength(): int
     {
@@ -275,6 +336,11 @@ enum Platform: string
             self::Instagram => 2_200,
             self::Threads => 500,
             self::Discord => 2000,
+            // The video `post_info.title` budget, which TikTok counts in UTF-16
+            // runes (see measure()). A photo post splits its text across a 90-rune
+            // title and a 4000-rune description; those are enforced separately by
+            // the TikTok options, not by this platform-wide budget.
+            self::TikTok => 2_200,
         };
     }
 
@@ -291,11 +357,18 @@ enum Platform: string
 
     /**
      * Maximum number of posts a single draft may thread into; null = unlimited.
+     *
+     * NOTE: this match has a `default` arm, so a new platform inherits "unlimited"
+     * silently — PHPStan cannot flag the omission. Any platform that publishes one
+     * post per draft must be named explicitly here.
      */
     public function threadMax(): ?int
     {
+        // TikTok publishes exactly one video or one photo carousel per post and has
+        // no threading concept, so it must be pinned to 1. Inheriting the `default`
+        // null would let auto_split fan a long caption out into several TikTok posts.
         return match ($this) {
-            self::LinkedIn, self::Facebook, self::Instagram => 1,
+            self::LinkedIn, self::Facebook, self::Instagram, self::TikTok => 1,
             default => null,
         };
     }
@@ -307,6 +380,7 @@ enum Platform: string
             self::LinkedIn => 9,
             self::Facebook, self::Instagram, self::Threads => 10,
             self::Discord => 10,
+            self::TikTok => 35, // photo-mode carousel cap; a video post is always single-media
         };
     }
 
@@ -326,12 +400,15 @@ enum Platform: string
      * untouched — none of them lose content. X, Bluesky, Facebook, and LinkedIn
      * each take only the first video and silently drop every image, so mixing
      * there is blocked before publish rather than discovered after.
+     *
+     * TikTok publishes exactly one video OR one photo carousel — the Content
+     * Posting API has no mixed post type at all — so it must never combine them.
      */
     public function combinesVideoAndImages(): bool
     {
         return match ($this) {
             self::Instagram, self::Threads, self::Discord => true,
-            self::X, self::Bluesky, self::Facebook, self::LinkedIn => false,
+            self::X, self::Bluesky, self::Facebook, self::LinkedIn, self::TikTok => false,
         };
     }
 
@@ -358,6 +435,10 @@ enum Platform: string
             self::Facebook => 4_194_304,
             self::Instagram, self::Threads => 8_388_608,
             self::Discord => 10_485_760, // 10 MiB (Discord's default webhook attachment cap)
+            // TikTok documents "20 MB" per photo without ever specifying whether it
+            // means MB or MiB. 20,000,000 is legal under either reading; 20,971,520
+            // (20 MiB) would be over the cap if TikTok means decimal.
+            self::TikTok => 20_000_000,
         };
     }
 
@@ -373,6 +454,10 @@ enum Platform: string
             self::Instagram => ['image/jpeg'],
             self::Threads => ['image/jpeg', 'image/png'],
             self::Discord => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+            // TikTok photo posts accept WebP and JPEG only. PNG/GIF uploads are
+            // transcoded to JPEG before publish (PublicMediaUrl::for →
+            // ImageToJpegConverter, the same URL-fetch path Instagram photos use).
+            self::TikTok => ['image/jpeg', 'image/webp'],
         };
     }
 
@@ -388,6 +473,11 @@ enum Platform: string
             self::Facebook => ['width' => 8192, 'height' => 8192],
             self::Instagram, self::Threads => ['width' => 1440, 'height' => 1800],
             self::Discord => ['width' => 8192, 'height' => 8192],
+            // TikTok says photos are "max 1080p" without defining whether that
+            // bounds the long edge, the short edge, or the pixel count. This is the
+            // portrait reading (1080×1920) and is advisory only — nothing enforces
+            // it client- or server-side; TikTok downscales on its end.
+            self::TikTok => ['width' => 1080, 'height' => 1920],
         };
     }
 
@@ -408,6 +498,13 @@ enum Platform: string
             self::Bluesky => 100_000_000,
             self::Facebook, self::Instagram, self::Threads => 1_073_741_824,
             self::Discord => 10_485_760, // 10 MiB (Discord's default webhook attachment cap)
+            // TikTok actually accepts up to 4 GB, but maxVideoBytesCeiling() is a
+            // max() across every platform and gates the presigned-upload guard in
+            // PostVideoUploadController and ReplyVideoUploadController. Declaring
+            // 4 GB here would raise that ceiling for *all* platforms and let any
+            // workspace presign 4 GB objects. Held at 1 GiB (matching the current
+            // ceiling) until the guard is made per-platform; raise both together.
+            self::TikTok => 1_073_741_824,
         };
     }
 
@@ -421,6 +518,11 @@ enum Platform: string
             self::Instagram => 900,
             self::Threads => 300,
             self::Discord => 600,
+            // The documented ceiling for video sent through the Content Posting
+            // API. The real per-account limit comes from creator_info's
+            // `max_video_post_duration_sec` and is enforced at publish, since it
+            // varies by creator and can be lower than this.
+            self::TikTok => 600,
         };
     }
 
@@ -438,8 +540,10 @@ enum Platform: string
     public function measure(string $text): int
     {
         return match ($this) {
-            // UTF-16 code units: 2 bytes each in UTF-16LE.
-            self::X => intdiv(strlen((string) mb_convert_encoding($text, 'UTF-16LE', 'UTF-8')), 2),
+            // UTF-16 code units: 2 bytes each in UTF-16LE. TikTok counts its title
+            // budgets in "runes", which are UTF-16 code units — the same unit X
+            // uses, so it shares this arm rather than reimplementing the count.
+            self::X, self::TikTok => intdiv(strlen((string) mb_convert_encoding($text, 'UTF-16LE', 'UTF-8')), 2),
             self::Bluesky => grapheme_strlen($text) ?: 0,
             self::LinkedIn, self::Facebook, self::Instagram, self::Threads, self::Discord => mb_strlen($text),
         };

@@ -7,6 +7,14 @@ import {
     type PostView,
 } from '@/types/compose';
 
+import {
+    DEFAULT_TIKTOK_OPTIONS,
+    fromWire,
+    type TikTokOptions,
+    type TikTokOptionsWire,
+    toWire,
+} from './tiktok';
+
 export type SaveState =
     | 'idle'
     | 'dirty'
@@ -31,6 +39,11 @@ export type ComposerState = {
     mentions: MentionPlaceholder[];
     destination: Destination;
     autoSplitByAccount: Record<string, boolean>;
+    /**
+     * Keyed by account id, and only ever populated for TikTok accounts — presence
+     * in this map is what tells buildPutBody a target is TikTok.
+     */
+    tiktokOptionsByAccount: Record<string, TikTokOptions>;
     overrideByAccount: Record<string, string[] | undefined>;
     mediaSubsetExcludes: Set<string>;
     media: MediaView[];
@@ -48,6 +61,11 @@ export type ComposerAction =
     | { type: 'setDestination'; destination: Destination }
     | { type: 'toggleAutoSplit'; accountId: string }
     | { type: 'disableAutoSplit'; accountIds: string[] }
+    | {
+          type: 'setTikTokOptions';
+          accountId: string;
+          patch: Partial<TikTokOptions>;
+      }
     | { type: 'setOverrideSegments'; accountId: string; segments: string[] }
     | { type: 'discardOverride'; accountId: string }
     | { type: 'toggleMediaExclude'; mediaId: string; accountId: string }
@@ -110,6 +128,7 @@ export function initialComposerState(
         mentions: [],
         destination: initialDestination ?? { kind: 'all' },
         autoSplitByAccount: {},
+        tiktokOptionsByAccount: {},
         overrideByAccount: {},
         mediaSubsetExcludes: new Set(),
         media: [],
@@ -147,11 +166,19 @@ export function parseDestinationParam(raw: string | null): Destination | null {
 
 function hydrate(post: PostView): ComposerState {
     const autoSplitByAccount: Record<string, boolean> = {};
+    const tiktokOptionsByAccount: Record<string, TikTokOptions> = {};
     const overrideByAccount: Record<string, string[] | undefined> = {};
     const mediaSubsetExcludes = new Set<string>();
 
     for (const target of post.targets) {
         autoSplitByAccount[target.connected_account_id] = target.auto_split;
+        // The server sends tiktok_options only for TikTok targets, so presence
+        // here is the discriminator rather than a platform check.
+        if (target.tiktok_options) {
+            tiktokOptionsByAccount[target.connected_account_id] = fromWire(
+                target.tiktok_options,
+            );
+        }
         const overrideSegments = target.content_override?.segments;
         if (overrideSegments !== undefined && overrideSegments !== null) {
             overrideByAccount[target.connected_account_id] = overrideSegments;
@@ -176,6 +203,7 @@ function hydrate(post: PostView): ComposerState {
                     ? { kind: 'accounts', ids: post.destination.ids }
                     : { kind: 'all' },
         autoSplitByAccount,
+        tiktokOptionsByAccount,
         overrideByAccount,
         mediaSubsetExcludes,
         media: post.media,
@@ -291,6 +319,26 @@ export function composerReducer(
                 },
                 saveState: 'dirty',
             };
+
+        case 'setTikTokOptions': {
+            const current =
+                state.tiktokOptionsByAccount[action.accountId] ??
+                DEFAULT_TIKTOK_OPTIONS;
+
+            // Deliberately does NOT auto-resolve the branded-content/"Only me"
+            // clash. Silently re-picking a visibility would install a choice the
+            // user never made, which is the exact thing TikTok's no-pre-selection
+            // rule exists to prevent. The panel shows the clash and the submit
+            // guard blocks until the user settles it.
+            return {
+                ...state,
+                tiktokOptionsByAccount: {
+                    ...state.tiktokOptionsByAccount,
+                    [action.accountId]: { ...current, ...action.patch },
+                },
+                saveState: 'dirty',
+            };
+        }
 
         case 'setOverrideSegments':
             return {
@@ -434,6 +482,8 @@ export function composerReducer(
 export type PutTarget = {
     connected_account_id: string;
     auto_split: boolean;
+    /** Null for every non-TikTok target; the server ignores it for those. */
+    tiktok_options: TikTokOptionsWire | null;
     content_override: { segments: string[]; media_ids: string[] } | null;
 };
 
@@ -473,9 +523,12 @@ export function buildPutBody(
                   }
                 : null;
 
+        const tiktokOptions = state.tiktokOptionsByAccount[accountId];
+
         return {
             connected_account_id: accountId,
             auto_split: state.autoSplitByAccount[accountId] ?? true,
+            tiktok_options: tiktokOptions ? toWire(tiktokOptions) : null,
             content_override,
         };
     });

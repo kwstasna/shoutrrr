@@ -8,6 +8,8 @@ use App\Http\Controllers\ConnectedAccounts\ConnectedAccountController;
 use App\Http\Controllers\ConnectedAccounts\DiscordConnectionController;
 use App\Http\Controllers\ConnectedAccounts\MetaConnectionController;
 use App\Http\Controllers\ConnectedAccounts\OAuthConnectionController;
+use App\Http\Controllers\ConnectedAccounts\TikTokConnectionController;
+use App\Http\Controllers\ConnectedAccounts\TikTokCreatorInfoController;
 use App\Http\Controllers\OAuth\BlueskyClientMetadataController;
 use App\Models\ConnectedAccount;
 use Illuminate\Support\Facades\Route;
@@ -61,6 +63,28 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('accounts/connect/meta', [MetaConnectionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('accounts.meta.store');
+
+    // Registered before the `{platform}` wildcard for the same reason as the Meta
+    // routes above: TikTok has no Socialite driver, so it must reach its own
+    // controller rather than the generic one (which 404s it — see
+    // Platform::usesDedicatedConnectionFlow). Unlike Meta, the callback path here
+    // is literally `/accounts/callback/tiktok`, which WOULD match the wildcard,
+    // so this ordering is load-bearing rather than merely tidy.
+    Route::get('accounts/connect/tiktok', [TikTokConnectionController::class, 'redirect'])
+        ->middleware('throttle:10,1')
+        ->name('accounts.tiktok.redirect');
+
+    Route::get('accounts/callback/tiktok', [TikTokConnectionController::class, 'callback'])
+        ->middleware('throttle:10,1')
+        ->name('accounts.tiktok.callback');
+
+    // The composer calls this before rendering the TikTok options, per TikTok's
+    // requirement that the posting UI is built from fresh creator info rather
+    // than a cached or hardcoded list. Throttled generously because it fires on
+    // tab activation, not on keystrokes; TikTok allows 20/min per account.
+    Route::get('accounts/{account}/tiktok/creator-info', TikTokCreatorInfoController::class)
+        ->middleware('throttle:20,1')
+        ->name('accounts.tiktok.creator-info');
 
     Route::get('accounts/connect/{platform}', [OAuthConnectionController::class, 'redirect'])
         ->middleware('throttle:10,1')

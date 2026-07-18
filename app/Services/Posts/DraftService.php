@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Posts;
 
 use App\Dto\Post\DraftData;
+use App\Dto\Post\TikTokOptionsData;
 use App\Enums\Platform;
 use App\Enums\PostStatus;
+use App\Enums\TikTokPostMode;
 use App\Models\AccountSet;
 use App\Models\ConnectedAccount;
 use App\Models\Post;
@@ -144,8 +146,9 @@ class DraftService
      * @param  array<string, bool>  $autoSplitByAccount
      * @param  array<string, array{segments: list<string>, media_ids: list<string>}|null>  $overrideByAccount
      * @param  list<array{id: string, label: string, handles: array<string, string>}>  $mentions
+     * @param  array<string, TikTokOptionsData|null>  $tiktokOptionsByAccount
      */
-    public function syncTargets(Post $post, array $accountIds, array $segments, array $autoSplitByAccount, array $overrideByAccount, array $mentions = []): void
+    public function syncTargets(Post $post, array $accountIds, array $segments, array $autoSplitByAccount, array $overrideByAccount, array $mentions = [], array $tiktokOptionsByAccount = []): void
     {
         $accounts = ConnectedAccount::withoutGlobalScopes()
             ->whereIn('id', $accountIds)
@@ -186,6 +189,26 @@ class DraftService
                 $account->maxTextLength(),
             )->sections;
 
+            // TikTok is the only platform with per-post publishing options. Only
+            // write them for a TikTok target, and only when the client actually
+            // sent them — otherwise an autosave from a non-TikTok tab would wipe
+            // choices the creator already made.
+            $tiktokColumns = [];
+            if ($account->platform === Platform::TikTok && array_key_exists($accountId, $tiktokOptionsByAccount)) {
+                // The null fallback mirrors the audit defaults exactly: no
+                // visibility chosen, and every interaction off (disable = true).
+                $tiktokColumns = ($tiktokOptionsByAccount[$accountId] ?? new TikTokOptionsData(
+                    postMode: TikTokPostMode::DirectPost,
+                    privacyLevel: null,
+                    disableComment: true,
+                    disableDuet: true,
+                    disableStitch: true,
+                    brandContentToggle: false,
+                    brandOrganicToggle: false,
+                    photoTitle: null,
+                ))->toColumns();
+            }
+
             PostTarget::updateOrCreate(
                 ['post_id' => $post->id, 'connected_account_id' => $accountId],
                 [
@@ -193,6 +216,7 @@ class DraftService
                     'sections' => $sections,
                     'content_override' => $override,
                     'auto_split' => $autoSplit,
+                    ...$tiktokColumns,
                 ],
             );
         }
@@ -225,9 +249,13 @@ class DraftService
             // otherwise syncTargets preserves the survivor's existing value.
             $autoSplitByAccount = [];
             $overrideByAccount = [];
+            $tiktokOptionsByAccount = [];
             foreach ($accountIds as $accountId) {
                 if ($data->hasAutoSplitFor($accountId)) {
                     $autoSplitByAccount[$accountId] = $data->autoSplitFor($accountId);
+                }
+                if ($data->hasTikTokOptionsFor($accountId)) {
+                    $tiktokOptionsByAccount[$accountId] = $data->tiktokOptionsFor($accountId);
                 }
                 if ($data->hasOverrideFor($accountId)) {
                     $overrideByAccount[$accountId] = $data->overrideFor($accountId);
@@ -241,7 +269,7 @@ class DraftService
                 'account_set_id' => $this->scopedAccountSetId($post->workspace_id, $destination),
             ])->save();
 
-            $this->syncTargets($post, $accountIds, $data->segments, $autoSplitByAccount, $overrideByAccount, $post->mentions ?? []);
+            $this->syncTargets($post, $accountIds, $data->segments, $autoSplitByAccount, $overrideByAccount, $post->mentions ?? [], $tiktokOptionsByAccount);
             $this->attachMedia($post, $data->mediaIds);
 
             $post->touch();

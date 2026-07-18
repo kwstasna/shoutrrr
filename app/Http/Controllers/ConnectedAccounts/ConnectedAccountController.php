@@ -138,6 +138,13 @@ class ConnectedAccountController extends Controller
                 return redirect()->route('accounts.meta.redirect');
             }
 
+            // TikTok has its own dedicated OAuth controller (no Socialite driver),
+            // so the generic accounts.connect route 404s it — reconnect through the
+            // TikTok flow instead.
+            if ($account->platform === Platform::TikTok) {
+                return redirect()->route('accounts.tiktok.redirect');
+            }
+
             return redirect()->route('accounts.connect', ['platform' => $account->platform->value]);
         }
 
