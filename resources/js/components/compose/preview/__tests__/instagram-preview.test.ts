@@ -16,7 +16,19 @@ beforeAll(() => {
         unobserve() {}
         disconnect() {}
     };
+    globalThis.PointerEvent = MouseEvent as unknown as typeof PointerEvent;
 });
+
+function swipe(el: HTMLElement, fromX: number, toX: number): void {
+    act(() => {
+        el.dispatchEvent(
+            new MouseEvent('pointerdown', { clientX: fromX, bubbles: true }),
+        );
+        el.dispatchEvent(
+            new MouseEvent('pointerup', { clientX: toX, bubbles: true }),
+        );
+    });
+}
 
 afterEach(() => {
     if (root) {
@@ -65,6 +77,35 @@ describe('InstagramPreview', () => {
         );
         act(() => next?.click());
         expect(el.textContent).toContain('2/3');
+    });
+
+    it('advances and rewinds the carousel with a swipe', () => {
+        const el = render(3);
+        const carousel = el.querySelector<HTMLElement>('.aspect-square');
+        expect(carousel).not.toBeNull();
+
+        swipe(carousel!, 220, 60);
+        expect(el.textContent).toContain('2/3');
+
+        swipe(carousel!, 60, 220);
+        expect(el.textContent).toContain('1/3');
+    });
+
+    it('ignores a tap that does not cross the swipe threshold', () => {
+        const el = render(3);
+        const carousel = el.querySelector<HTMLElement>('.aspect-square');
+
+        swipe(carousel!, 120, 110);
+        expect(el.textContent).toContain('1/3');
+    });
+
+    it('jumps straight to a slide when its dot is clicked', () => {
+        const el = render(3);
+        const thirdDot = el.querySelector<HTMLButtonElement>(
+            '[aria-label="Go to photo 3"]',
+        );
+        act(() => thirdDot?.click());
+        expect(el.textContent).toContain('3/3');
     });
 
     it('renders no carousel chrome for a single photo', () => {

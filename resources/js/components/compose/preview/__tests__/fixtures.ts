@@ -1,6 +1,5 @@
 import type { PlatformPreview } from '@/lib/compose/platform-preview';
-import type { MediaView } from '@/types/compose';
-import type { PlatformName } from '@/types/compose';
+import type { MediaView, PlatformName } from '@/types/compose';
 
 export function imageMedia(id: string): MediaView {
     return {
@@ -10,20 +9,6 @@ export function imageMedia(id: string): MediaView {
         kind: 'image',
         alt_text: null,
         duration_seconds: null,
-        position: 0,
-        edit_settings: null,
-        source_url: null,
-    };
-}
-
-export function videoMedia(id: string): MediaView {
-    return {
-        id,
-        url: `https://cdn.example.test/${id}.mp4`,
-        mime: 'video/mp4',
-        kind: 'video',
-        alt_text: null,
-        duration_seconds: 12,
         position: 0,
         edit_settings: null,
         source_url: null,

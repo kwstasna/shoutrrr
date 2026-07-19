@@ -11,7 +11,7 @@ import {
     Images as StoriesIcon,
     X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { PlatformPreview } from '@/lib/compose/platform-preview';
@@ -56,24 +56,61 @@ function VerifiedBadge() {
     );
 }
 
+/** Horizontal drag past this many pixels flips to the next/previous slide. */
+const SWIPE_THRESHOLD = 40;
+
 /**
- * Instagram's carousel viewer: one square slide at a time, a `1/N` counter, a row
- * of dot indicators, and prev/next arrows that appear on hover and disappear at
- * the first/last slide — the way the Instagram web feed presents a multi-photo
- * post. A single attachment renders as a plain square with no carousel chrome.
+ * Instagram's carousel viewer: one square slide at a time, navigable by swipe (or
+ * mouse drag), the dot indicators, and prev/next arrows that appear on hover — the
+ * way the Instagram feed presents a multi-photo post. Navigation stops at the
+ * first and last slide rather than wrapping. A single attachment renders as a
+ * plain square with no carousel chrome.
  */
 function InstagramCarousel({ media }: { media: MediaView[] }) {
     const [index, setIndex] = useState(0);
+    const dragStartX = useRef<number | null>(null);
     const safeIndex = clampIndex(index, media.length);
     const current = media[safeIndex];
     const many = media.length > 1;
+
+    const go = (delta: number) => {
+        setIndex((previous) => clampIndex(previous + delta, media.length));
+    };
 
     if (!current) {
         return null;
     }
 
     return (
-        <div className="group relative aspect-square w-full overflow-hidden bg-neutral-950">
+        <div
+            className="group relative aspect-square w-full touch-pan-y overflow-hidden bg-neutral-950 select-none"
+            onPointerDown={
+                many
+                    ? (event) => {
+                          dragStartX.current = event.clientX;
+                      }
+                    : undefined
+            }
+            onPointerUp={
+                many
+                    ? (event) => {
+                          if (dragStartX.current === null) {
+                              return;
+                          }
+                          const dx = event.clientX - dragStartX.current;
+                          dragStartX.current = null;
+                          if (dx <= -SWIPE_THRESHOLD) {
+                              go(1);
+                          } else if (dx >= SWIPE_THRESHOLD) {
+                              go(-1);
+                          }
+                      }
+                    : undefined
+            }
+            onPointerCancel={() => {
+                dragStartX.current = null;
+            }}
+        >
             {current.kind === 'video' ? (
                 <PreviewVideo
                     key={current.id}
@@ -85,6 +122,7 @@ function InstagramCarousel({ media }: { media: MediaView[] }) {
                     key={current.id}
                     src={current.url}
                     alt={current.alt_text ?? ''}
+                    draggable={false}
                     className="absolute inset-0 size-full object-cover"
                 />
             )}
@@ -99,7 +137,7 @@ function InstagramCarousel({ media }: { media: MediaView[] }) {
                         <button
                             type="button"
                             aria-label="Previous photo"
-                            onClick={() => setIndex(safeIndex - 1)}
+                            onClick={() => go(-1)}
                             className="absolute top-1/2 left-2 grid size-6 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-neutral-800 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                         >
                             <ChevronLeft className="size-4" aria-hidden />
@@ -109,14 +147,14 @@ function InstagramCarousel({ media }: { media: MediaView[] }) {
                         <button
                             type="button"
                             aria-label="Next photo"
-                            onClick={() => setIndex(safeIndex + 1)}
+                            onClick={() => go(1)}
                             className="absolute top-1/2 right-2 grid size-6 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-neutral-800 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                         >
                             <ChevronRight className="size-4" aria-hidden />
                         </button>
                     )}
 
-                    <div className="absolute inset-x-0 bottom-2.5 flex items-center justify-center gap-1">
+                    <div className="absolute inset-x-0 bottom-1.5 flex items-center justify-center">
                         {media.map((item, dot) => (
                             <button
                                 key={item.id}
@@ -124,13 +162,17 @@ function InstagramCarousel({ media }: { media: MediaView[] }) {
                                 aria-label={`Go to photo ${dot + 1}`}
                                 aria-current={dot === safeIndex}
                                 onClick={() => setIndex(dot)}
-                                className={cn(
-                                    'size-1.5 rounded-full transition-colors',
-                                    dot === safeIndex
-                                        ? 'bg-[#0095F6]'
-                                        : 'bg-white/60',
-                                )}
-                            />
+                                className="flex items-center justify-center px-1 py-1.5"
+                            >
+                                <span
+                                    className={cn(
+                                        'block size-1.5 rounded-full transition-colors',
+                                        dot === safeIndex
+                                            ? 'bg-[#0095F6]'
+                                            : 'bg-white/60',
+                                    )}
+                                />
+                            </button>
                         ))}
                     </div>
                 </>
