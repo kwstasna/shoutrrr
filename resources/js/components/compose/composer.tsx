@@ -1,5 +1,5 @@
 import { Link, useHttp } from '@inertiajs/react';
-import { Eye, Pin, Plug } from 'lucide-react';
+import { Eye, Pin, Plug, TriangleAlert } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,10 @@ import {
     shouldShowConnectAccountPrompt,
     type ComposerState,
 } from '@/lib/compose/composer-state';
+import {
+    describeFormatNotice,
+    precheckNotices,
+} from '@/lib/compose/format-notices';
 import {
     wouldMixVideoAndImages,
     wouldViolateBlueskyGif,
@@ -579,12 +583,15 @@ export default function Composer({
         // every target (see precheckDestinations), so per-account exclusions must
         // not change the severity a destination shows.
         const mediaCount = state.media.length;
+        const hasVideo = state.media.some((item) => item.kind === 'video');
         const reasons = precheckAccount({
             account,
             segments,
             autoSplit: state.autoSplitByAccount[accountId] ?? true,
             mentions: state.mentions,
             mediaCount,
+            hasVideo,
+            format: state.formatByAccount[accountId] ?? 'feed',
             limits: platformLimits,
         });
         if (reasons.length > 0) {
@@ -776,9 +783,20 @@ export default function Composer({
         mentions: state.mentions,
         autoSplitByAccount: state.autoSplitByAccount,
         overrideByAccount: state.overrideByAccount,
+        formatByAccount: state.formatByAccount,
         media: state.media,
         limits,
     });
+    const notices = precheckNotices({
+        accounts: tabAccounts,
+        segments: state.segments,
+        overrideByAccount: state.overrideByAccount,
+        formatByAccount: state.formatByAccount,
+        media: state.media,
+    });
+    const activeNotices = activeAccount
+        ? (notices.find((n) => n.accountId === activeAccount.id)?.notices ?? [])
+        : [];
 
     return (
         <div
@@ -807,6 +825,9 @@ export default function Composer({
                             hasOverride={(accountId) =>
                                 state.overrideByAccount[accountId] !== undefined
                             }
+                            noticeAccountIds={notices.map(
+                                (notice) => notice.accountId,
+                            )}
                         />
                     </div>
                     <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 pr-1 sm:gap-2">
@@ -941,6 +962,28 @@ export default function Composer({
                     </div>
                 ) : null}
 
+                {activeAccount && activeNotices.length > 0 && (
+                    <div className="-mt-1 space-y-1 px-4 pb-3.5 sm:px-[26px]">
+                        {activeNotices.map((notice) => (
+                            <p
+                                key={notice}
+                                className="flex items-start gap-1.5 text-[12px] text-amber-700 dark:text-amber-500"
+                            >
+                                <TriangleAlert
+                                    className="mt-0.5 size-3.5 shrink-0"
+                                    aria-hidden="true"
+                                />
+                                <span>
+                                    {describeFormatNotice(
+                                        notice,
+                                        activeAccount.platform,
+                                    )}
+                                </span>
+                            </p>
+                        ))}
+                    </div>
+                )}
+
                 {/* Toolbar — editing controls when editable; just the attached
                 media when read-only (skipped entirely if there's none). */}
                 {(!readOnly || state.media.length > 0) && (
@@ -956,6 +999,22 @@ export default function Composer({
                                 ? (state.autoSplitByAccount[activeAccount.id] ??
                                   true)
                                 : false
+                        }
+                        format={
+                            activeAccount
+                                ? (state.formatByAccount[activeAccount.id] ??
+                                  'feed')
+                                : 'feed'
+                        }
+                        onFormatChange={
+                            activeAccount
+                                ? (format) =>
+                                      dispatch({
+                                          type: 'setFormat',
+                                          accountId: activeAccount.id,
+                                          format,
+                                      })
+                                : undefined
                         }
                         overrideActive={overrideActive}
                         showSplitControls={activeAccount !== null}
