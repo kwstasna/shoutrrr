@@ -4,6 +4,9 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
+import type { PlatformPreview } from '@/lib/compose/platform-preview';
+import type { MediaView, PostFormat } from '@/types/compose';
+
 import { InstagramPreview } from '../instagram-preview';
 import { imageMedia, makePreview, videoMedia } from './fixtures';
 
@@ -39,36 +42,34 @@ afterEach(() => {
     container = null;
 });
 
-function render(count: number): HTMLDivElement {
+function mount(preview: PlatformPreview): HTMLDivElement {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
-    const media = Array.from({ length: count }, (_, i) => imageMedia(`m${i}`));
     act(() => {
-        root?.render(
-            createElement(InstagramPreview, {
-                preview: makePreview('instagram', media),
-            }),
-        );
+        root?.render(createElement(InstagramPreview, { preview }));
     });
 
     return container;
 }
 
-function findByText(el: HTMLElement, text: string): HTMLButtonElement {
-    const button = [...el.querySelectorAll('button')].find(
-        (node) => node.textContent?.trim() === text,
-    );
-    if (!button) {
-        throw new Error(`No button with text "${text}"`);
-    }
+function renderFeed(count: number): HTMLDivElement {
+    const media = Array.from({ length: count }, (_, i) => imageMedia(`m${i}`));
 
-    return button as HTMLButtonElement;
+    return mount(makePreview('instagram', media));
 }
 
-describe('InstagramPreview', () => {
+function renderFormat(
+    media: MediaView[],
+    format: PostFormat,
+    caption?: string,
+): HTMLDivElement {
+    return mount(makePreview('instagram', media, caption, format));
+}
+
+describe('InstagramPreview feed', () => {
     it('shows the carousel counter and steps through slides', () => {
-        const el = render(3);
+        const el = renderFeed(3);
 
         expect(el.textContent).toContain('1/3');
 
@@ -80,7 +81,7 @@ describe('InstagramPreview', () => {
     });
 
     it('advances and rewinds the carousel with a swipe', () => {
-        const el = render(3);
+        const el = renderFeed(3);
         const carousel = el.querySelector<HTMLElement>('.aspect-square');
         expect(carousel).not.toBeNull();
 
@@ -92,7 +93,7 @@ describe('InstagramPreview', () => {
     });
 
     it('ignores a tap that does not cross the swipe threshold', () => {
-        const el = render(3);
+        const el = renderFeed(3);
         const carousel = el.querySelector<HTMLElement>('.aspect-square');
 
         swipe(carousel!, 120, 110);
@@ -100,7 +101,7 @@ describe('InstagramPreview', () => {
     });
 
     it('jumps straight to a slide when its dot is clicked', () => {
-        const el = render(3);
+        const el = renderFeed(3);
         const thirdDot = el.querySelector<HTMLButtonElement>(
             '[aria-label="Go to photo 3"]',
         );
@@ -109,111 +110,85 @@ describe('InstagramPreview', () => {
     });
 
     it('renders no carousel chrome for a single photo', () => {
-        const el = render(1);
+        const el = renderFeed(1);
 
         expect(el.querySelector('[aria-label="Next photo"]')).toBeNull();
         expect(el.textContent).not.toContain('1/1');
     });
 
-    it('switches between the feed post and the 9:16 story', () => {
-        const el = render(3);
-
-        expect(el.textContent).toContain('View all comments');
-        expect(el.textContent).not.toContain('9:16');
-
-        act(() => findByText(el, 'Story').click());
-
-        expect(el.textContent).toContain('9:16');
-        expect(el.querySelector('[aria-label="Next photo"]')).toBeNull();
-
-        act(() => findByText(el, 'Post').click());
-        expect(el.textContent).toContain('View all comments');
-    });
-
     it('prompts for media when the post has none', () => {
-        const el = render(0);
+        const el = renderFeed(0);
 
         expect(el.textContent).toContain(
             'Instagram posts always include media',
         );
     });
 
-    it('renders each story attachment as its own navigable segment', () => {
-        container = document.createElement('div');
-        document.body.append(container);
-        root = createRoot(container);
-        const media = [imageMedia('m0'), videoMedia('m1'), imageMedia('m2')];
-        act(() => {
-            root?.render(
-                createElement(InstagramPreview, {
-                    preview: makePreview('instagram', media),
-                }),
-            );
-        });
-        act(() => findByText(container!, 'Story').click());
-
-        expect(container.textContent).toContain('3 attachments');
-        expect(container.textContent).toContain('3 story segments');
-
-        // Segment 1 is the photo.
-        expect(container.querySelector('img[src*="m0"]')).not.toBeNull();
-        expect(container.querySelector('video')).toBeNull();
-
-        // Segment 2 is the video.
-        act(() =>
-            container
-                ?.querySelector<HTMLButtonElement>('[aria-label="Next story"]')
-                ?.click(),
-        );
-        expect(container.querySelector('video')).not.toBeNull();
-        expect(container.querySelector('img[src*="m0"]')).toBeNull();
-
-        // Segment 3 is the second photo.
-        act(() =>
-            container
-                ?.querySelector<HTMLButtonElement>('[aria-label="Next story"]')
-                ?.click(),
-        );
-        expect(container.querySelector('img[src*="m2"]')).not.toBeNull();
-        expect(container.querySelector('video')).toBeNull();
-    });
-
-    it('shows a single story with no segment navigation for one attachment', () => {
-        container = document.createElement('div');
-        document.body.append(container);
-        root = createRoot(container);
-        act(() => {
-            root?.render(
-                createElement(InstagramPreview, {
-                    preview: makePreview('instagram', [imageMedia('m0')]),
-                }),
-            );
-        });
-        act(() => findByText(container!, 'Story').click());
-
-        expect(container.textContent).not.toContain('attachments');
-        expect(container.querySelector('[aria-label="Next story"]')).toBeNull();
-    });
-
     it('links hashtags in the caption', () => {
-        container = document.createElement('div');
-        document.body.append(container);
-        root = createRoot(container);
-        act(() => {
-            root?.render(
-                createElement(InstagramPreview, {
-                    preview: makePreview(
-                        'instagram',
-                        [imageMedia('m0')],
-                        'Golden hour #harbor',
-                    ),
-                }),
-            );
-        });
+        const el = renderFormat(
+            [imageMedia('m0')],
+            'feed',
+            'Golden hour #harbor',
+        );
 
-        const link = container.querySelector<HTMLAnchorElement>(
+        const link = el.querySelector<HTMLAnchorElement>(
             'a[href*="explore/tags/harbor"]',
         );
         expect(link?.textContent).toBe('#harbor');
+    });
+});
+
+describe('InstagramPreview story', () => {
+    it('shows only the first attachment with no carousel or caption', () => {
+        const el = renderFormat(
+            [imageMedia('m0'), videoMedia('m1'), imageMedia('m2')],
+            'story',
+            'Golden hour #harbor',
+        );
+
+        // A Story publishes just the first media item — no carousel, no
+        // second segment, and no caption.
+        expect(el.querySelector('img[src*="m0"]')).not.toBeNull();
+        expect(el.querySelector('img[src*="m2"]')).toBeNull();
+        expect(el.querySelector('video')).toBeNull();
+        expect(el.querySelector('[aria-label="Next story"]')).toBeNull();
+        expect(el.querySelector('[aria-label="Next photo"]')).toBeNull();
+        expect(el.textContent).not.toContain('#harbor');
+        expect(el.textContent).not.toContain('View all comments');
+    });
+
+    it('plays a video story when the first attachment is a video', () => {
+        const el = renderFormat([videoMedia('v0')], 'story');
+
+        expect(el.querySelector('video')).not.toBeNull();
+    });
+
+    it('prompts for media when the story has none', () => {
+        const el = renderFormat([], 'story');
+
+        expect(el.textContent).toContain('preview your story');
+    });
+});
+
+describe('InstagramPreview reels', () => {
+    it('plays the first video and keeps the caption', () => {
+        const el = renderFormat(
+            [imageMedia('m0'), videoMedia('v1')],
+            'reels',
+            'Golden hour #harbor',
+        );
+
+        expect(el.querySelector('video')).not.toBeNull();
+        const link = el.querySelector<HTMLAnchorElement>(
+            'a[href*="explore/tags/harbor"]',
+        );
+        expect(link?.textContent).toBe('#harbor');
+    });
+
+    it('prompts for a video when the reel has none', () => {
+        const el = renderFormat([imageMedia('m0')], 'reels');
+
+        expect(el.querySelector('video')).toBeNull();
+        expect(el.textContent).toContain('Reels are single-video posts');
     });
 });

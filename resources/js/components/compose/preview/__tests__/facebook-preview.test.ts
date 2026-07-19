@@ -4,8 +4,11 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
+import type { PlatformPreview } from '@/lib/compose/platform-preview';
+import type { MediaView, PostFormat } from '@/types/compose';
+
 import { FacebookPreview } from '../facebook-preview';
-import { imageMedia, makePreview } from './fixtures';
+import { imageMedia, makePreview, videoMedia } from './fixtures';
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
@@ -27,57 +30,77 @@ afterEach(() => {
     container = null;
 });
 
-function render(count: number, caption?: string): HTMLDivElement {
+function mount(preview: PlatformPreview): HTMLDivElement {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
-    const media = Array.from({ length: count }, (_, i) => imageMedia(`m${i}`));
     act(() => {
-        root?.render(
-            createElement(FacebookPreview, {
-                preview: makePreview('facebook', media, caption),
-            }),
-        );
+        root?.render(createElement(FacebookPreview, { preview }));
     });
 
     return container;
 }
 
-function findByText(el: HTMLElement, text: string): HTMLButtonElement {
-    const button = [...el.querySelectorAll('button')].find(
-        (node) => node.textContent?.trim() === text,
-    );
-    if (!button) {
-        throw new Error(`No button with text "${text}"`);
-    }
+function renderFeed(count: number, caption?: string): HTMLDivElement {
+    const media = Array.from({ length: count }, (_, i) => imageMedia(`m${i}`));
 
-    return button as HTMLButtonElement;
+    return mount(makePreview('facebook', media, caption));
 }
 
-describe('FacebookPreview', () => {
+function renderFormat(
+    media: MediaView[],
+    format: PostFormat,
+    caption?: string,
+): HTMLDivElement {
+    return mount(makePreview('facebook', media, caption, format));
+}
+
+describe('FacebookPreview feed', () => {
     it('renders the caption above the media', () => {
-        const el = render(1, 'Launch day is here');
+        const el = renderFeed(1, 'Launch day is here');
 
         expect(el.textContent).toContain('Launch day is here');
     });
 
     it('caps the album mosaic at five tiles with a "+N" overlay', () => {
-        const el = render(8);
+        const el = renderFeed(8);
         const tiles = el.querySelectorAll('img');
 
         expect(tiles).toHaveLength(5);
         expect(el.textContent).toContain('+3');
     });
+});
 
-    it('switches between the feed post and the 9:16 story', () => {
-        const el = render(2);
+describe('FacebookPreview story', () => {
+    it('shows only the first attachment with no caption', () => {
+        const el = renderFormat(
+            [imageMedia('m0'), imageMedia('m1')],
+            'story',
+            'Launch day is here',
+        );
 
-        expect(el.textContent).not.toContain('9:16');
+        expect(el.querySelector('img[src*="m0"]')).not.toBeNull();
+        expect(el.querySelector('img[src*="m1"]')).toBeNull();
+        expect(el.textContent).not.toContain('Launch day is here');
+    });
+});
 
-        act(() => findByText(el, 'Story').click());
-        expect(el.textContent).toContain('9:16');
+describe('FacebookPreview reels', () => {
+    it('plays the first video and keeps the caption', () => {
+        const el = renderFormat(
+            [imageMedia('m0'), videoMedia('v1')],
+            'reels',
+            'Launch day is here',
+        );
 
-        act(() => findByText(el, 'Feed').click());
-        expect(el.textContent).not.toContain('9:16');
+        expect(el.querySelector('video')).not.toBeNull();
+        expect(el.textContent).toContain('Launch day is here');
+    });
+
+    it('prompts for a video when the reel has none', () => {
+        const el = renderFormat([imageMedia('m0')], 'reels');
+
+        expect(el.querySelector('video')).toBeNull();
+        expect(el.textContent).toContain('Reels are single-video posts');
     });
 });

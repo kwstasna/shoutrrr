@@ -1,5 +1,5 @@
 import type { PlatformPreview } from '@/lib/compose/platform-preview';
-import type { MediaView, PlatformName } from '@/types/compose';
+import type { MediaView, PlatformName, PostFormat } from '@/types/compose';
 
 export function imageMedia(id: string): MediaView {
     return {
@@ -33,6 +33,7 @@ export function makePreview(
     platform: PlatformName,
     media: MediaView[],
     caption = 'Sunset over the harbor #travel',
+    format: PostFormat = 'feed',
 ): PlatformPreview {
     return {
         platform,
@@ -41,6 +42,7 @@ export function makePreview(
         avatarUrl: null,
         limit: 2200,
         autoSplit: false,
+        format,
         items: [
             {
                 id: `${platform}-preview-1`,

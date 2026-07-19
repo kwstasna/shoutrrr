@@ -86,7 +86,9 @@ function mentionCandidates(
         });
     }
 
-    if (platform === 'instagram') {
+    // Instagram and Threads share the same username shape (a Threads account is
+    // an Instagram account); only the profile host differs.
+    if (platform === 'instagram' || platform === 'threads') {
         return [...text.matchAll(INSTAGRAM_MENTION_PATTERN)]
             .map((match) => {
                 const handle = (match[0] ?? '').replace(/\.+$/, '');
@@ -96,7 +98,10 @@ function mentionCandidates(
                     start,
                     end: start + handle.length,
                     text: handle,
-                    href: `https://www.instagram.com/${handle.slice(1)}/`,
+                    href:
+                        platform === 'instagram'
+                            ? `https://www.instagram.com/${handle.slice(1)}/`
+                            : `https://www.threads.net/${handle}`,
                 };
             })
             .filter((candidate) => candidate.text.length > 1);
@@ -106,21 +111,26 @@ function mentionCandidates(
 }
 
 /**
- * `#hashtag` links for the platforms that surface them (Instagram, Facebook).
- * Every other platform returns none, so their rendering is unchanged.
+ * `#hashtag` links for the platforms that surface them (Instagram, Facebook,
+ * Threads). Every other platform returns none, so their rendering is unchanged.
  */
 function hashtagCandidates(
     text: string,
     platform?: PlatformName,
 ): LinkCandidate[] {
-    if (platform !== 'instagram' && platform !== 'facebook') {
+    const toHref =
+        platform === 'instagram'
+            ? (tag: string) => `https://www.instagram.com/explore/tags/${tag}`
+            : platform === 'facebook'
+              ? (tag: string) => `https://www.facebook.com/hashtag/${tag}`
+              : platform === 'threads'
+                ? (tag: string) =>
+                      `https://www.threads.net/search?q=${tag}&serp_type=tags`
+                : null;
+
+    if (toHref === null) {
         return [];
     }
-
-    const base =
-        platform === 'instagram'
-            ? 'https://www.instagram.com/explore/tags/'
-            : 'https://www.facebook.com/hashtag/';
 
     return [...text.matchAll(HASHTAG_PATTERN)].map((match) => {
         const tag = match[0] ?? '';
@@ -130,7 +140,7 @@ function hashtagCandidates(
             start,
             end: start + tag.length,
             text: tag,
-            href: `${base}${(match[1] ?? '').toLowerCase()}`,
+            href: toHref((match[1] ?? '').toLowerCase()),
         };
     });
 }

@@ -109,6 +109,29 @@ describe('linkedTextParts', () => {
         ]);
     });
 
+    it('links Threads mentions to the matching profile', () => {
+        expect(linkedTextParts('cc @studio.harbor here', 'threads')).toEqual([
+            { type: 'text', text: 'cc ' },
+            {
+                type: 'link',
+                text: '@studio.harbor',
+                href: 'https://www.threads.net/@studio.harbor',
+            },
+            { type: 'text', text: ' here' },
+        ]);
+    });
+
+    it('links Threads hashtags to the tag search, lowercasing the href', () => {
+        expect(linkedTextParts('Golden hour #Harbor', 'threads')).toEqual([
+            { type: 'text', text: 'Golden hour ' },
+            {
+                type: 'link',
+                text: '#Harbor',
+                href: 'https://www.threads.net/search?q=harbor&serp_type=tags',
+            },
+        ]);
+    });
+
     it('keeps a URL fragment intact instead of splitting off an inner hashtag', () => {
         expect(linkedTextParts('see example.com/#top', 'instagram')).toEqual([
             { type: 'text', text: 'see ' },

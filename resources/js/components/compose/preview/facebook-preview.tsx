@@ -1,15 +1,12 @@
 import {
-    Clapperboard,
     Globe,
     Heart,
     MessageCircle,
     MoreHorizontal,
     Share2,
-    SquarePlay,
     ThumbsUp,
     X,
 } from 'lucide-react';
-import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { PlatformPreview } from '@/lib/compose/platform-preview';
@@ -17,7 +14,6 @@ import { LinkedText } from '@/lib/linked-text';
 import { cn } from '@/lib/utils';
 import type { MediaView } from '@/types/compose';
 
-import { PreviewFormatToggle } from './format-toggle';
 import {
     facebookCollage,
     PREVIEW_ENTITY_LINK,
@@ -25,9 +21,8 @@ import {
     previewMedia,
 } from './helpers';
 import { PreviewVideo } from './preview-video';
+import { ReelsFrame } from './reels-frame';
 import { StoryFrame } from './story-frame';
-
-type FacebookFormat = 'feed' | 'story';
 
 function MediaTile({
     media,
@@ -120,7 +115,7 @@ function FacebookFeedPost({ preview }: { preview: PlatformPreview }) {
 
     return (
         <article className="mx-auto w-full max-w-[400px] overflow-hidden rounded-xl border border-border bg-background">
-            <header className="flex items-center gap-2.5 px-3 pt-3">
+            <header className="flex items-center gap-2.5 px-3 pt-3 pb-2.5">
                 <Avatar className="size-9">
                     <AvatarImage src={preview.avatarUrl ?? undefined} />
                     <AvatarFallback className="text-[11px] font-semibold">
@@ -128,24 +123,23 @@ function FacebookFeedPost({ preview }: { preview: PlatformPreview }) {
                     </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold text-foreground">
+                    <p className="truncate text-[13px] leading-tight font-semibold text-foreground">
                         {preview.accountName}
                     </p>
-                    <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-muted-foreground">
                         Just now
                         <span aria-hidden>·</span>
                         <Globe className="size-3" aria-label="Public" />
                     </p>
                 </div>
-                <MoreHorizontal
-                    className="size-5 text-muted-foreground"
-                    aria-hidden
-                />
-                <X className="size-5 text-muted-foreground" aria-hidden />
+                <div className="flex items-center gap-1 text-muted-foreground">
+                    <MoreHorizontal className="size-5" aria-hidden />
+                    <X className="size-5" aria-hidden />
+                </div>
             </header>
 
             {caption !== '' && (
-                <p className="px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
+                <p className="px-3 pb-2.5 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
                     <LinkedText
                         text={caption}
                         platform="facebook"
@@ -182,26 +176,18 @@ function FacebookFeedPost({ preview }: { preview: PlatformPreview }) {
     );
 }
 
-const FORMAT_OPTIONS = [
-    { value: 'feed', label: 'Feed', icon: SquarePlay },
-    { value: 'story', label: 'Story', icon: Clapperboard },
-] as const;
-
+/**
+ * Renders the active account's Facebook surface. The format comes from the
+ * composer (per account), so the preview mirrors exactly what will publish: a
+ * feed post, a Reel, or a Story.
+ */
 export function FacebookPreview({ preview }: { preview: PlatformPreview }) {
-    const [format, setFormat] = useState<FacebookFormat>('feed');
-
     return (
-        <div className="space-y-4 p-4">
-            <div className="flex justify-center">
-                <PreviewFormatToggle
-                    value={format}
-                    onChange={setFormat}
-                    options={[...FORMAT_OPTIONS]}
-                    ariaLabel="Facebook format"
-                />
-            </div>
-            {format === 'story' ? (
+        <div className="p-4">
+            {preview.format === 'story' ? (
                 <StoryFrame preview={preview} platform="facebook" />
+            ) : preview.format === 'reels' ? (
+                <ReelsFrame preview={preview} platform="facebook" />
             ) : (
                 <FacebookFeedPost preview={preview} />
             )}

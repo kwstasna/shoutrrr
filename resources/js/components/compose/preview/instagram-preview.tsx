@@ -7,8 +7,6 @@ import {
     MessageCircle,
     MoreHorizontal,
     Send,
-    Square,
-    Images as StoriesIcon,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
@@ -18,7 +16,6 @@ import { LinkedText } from '@/lib/linked-text';
 import { cn } from '@/lib/utils';
 import type { MediaView } from '@/types/compose';
 
-import { PreviewFormatToggle } from './format-toggle';
 import {
     clampIndex,
     handleName,
@@ -27,9 +24,8 @@ import {
     previewMedia,
 } from './helpers';
 import { PreviewVideo } from './preview-video';
+import { ReelsFrame } from './reels-frame';
 import { StoryFrame } from './story-frame';
-
-type InstagramFormat = 'feed' | 'story';
 
 function VerifiedBadge() {
     return (
@@ -251,26 +247,18 @@ function InstagramFeedPost({ preview }: { preview: PlatformPreview }) {
     );
 }
 
-const FORMAT_OPTIONS = [
-    { value: 'feed', label: 'Post', icon: Square },
-    { value: 'story', label: 'Story', icon: StoriesIcon },
-] as const;
-
+/**
+ * Renders the active account's Instagram surface. The format comes from the
+ * composer (per account), so the preview mirrors exactly what will publish: a
+ * feed post, a Reel, or a Story.
+ */
 export function InstagramPreview({ preview }: { preview: PlatformPreview }) {
-    const [format, setFormat] = useState<InstagramFormat>('feed');
-
     return (
-        <div className="space-y-4 p-4">
-            <div className="flex justify-center">
-                <PreviewFormatToggle
-                    value={format}
-                    onChange={setFormat}
-                    options={[...FORMAT_OPTIONS]}
-                    ariaLabel="Instagram format"
-                />
-            </div>
-            {format === 'story' ? (
+        <div className="p-4">
+            {preview.format === 'story' ? (
                 <StoryFrame preview={preview} platform="instagram" />
+            ) : preview.format === 'reels' ? (
+                <ReelsFrame preview={preview} platform="instagram" />
             ) : (
                 <InstagramFeedPost preview={preview} />
             )}

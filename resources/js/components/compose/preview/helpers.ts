@@ -11,6 +11,24 @@ export function previewMedia(preview: PlatformPreview): MediaView[] {
 }
 
 /**
+ * The single item a Story publishes: Meta's Story endpoints take exactly one
+ * photo or video, so a Story posts only the first attachment (matching the
+ * `story_first_media_only` composer notice), never a carousel.
+ */
+export function storyMedia(preview: PlatformPreview): MediaView | null {
+    return previewMedia(preview)[0] ?? null;
+}
+
+/**
+ * The video a Reel publishes: the first video attachment. A Reel is a single
+ * video, so any images are ignored and a Reel without a video has nothing to
+ * show (matching the connectors' first-video selection).
+ */
+export function reelVideo(preview: PlatformPreview): MediaView | null {
+    return previewMedia(preview).find((item) => item.kind === 'video') ?? null;
+}
+
+/**
  * Styling for @mentions, #hashtags and links inside a preview caption: the
  * social-feed blue, no underline — the way Instagram and Facebook render them.
  */
