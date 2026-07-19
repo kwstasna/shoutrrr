@@ -22,6 +22,7 @@ import type { MediaView } from '@/types/compose';
 import { PreviewFormatToggle } from './format-toggle';
 import {
     clampIndex,
+    PREVIEW_ENTITY_LINK,
     previewInitials,
     previewMedia,
     storyMedia,
@@ -195,6 +196,7 @@ function InstagramFeedPost({ preview }: { preview: PlatformPreview }) {
                         text={caption}
                         platform="instagram"
                         linkExclusions={item?.linkExclusions ?? []}
+                        linkClassName={PREVIEW_ENTITY_LINK}
                         emptyFallback={
                             <span className="text-muted-foreground">
                                 Write a caption to see it here.

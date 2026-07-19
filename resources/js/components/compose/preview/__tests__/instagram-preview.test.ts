@@ -92,6 +92,30 @@ describe('InstagramPreview', () => {
     it('prompts for media when the post has none', () => {
         const el = render(0);
 
-        expect(el.textContent).toContain('Instagram posts always include media');
+        expect(el.textContent).toContain(
+            'Instagram posts always include media',
+        );
+    });
+
+    it('links hashtags in the caption', () => {
+        container = document.createElement('div');
+        document.body.append(container);
+        root = createRoot(container);
+        act(() => {
+            root?.render(
+                createElement(InstagramPreview, {
+                    preview: makePreview(
+                        'instagram',
+                        [imageMedia('m0')],
+                        'Golden hour #harbor',
+                    ),
+                }),
+            );
+        });
+
+        const link = container.querySelector<HTMLAnchorElement>(
+            'a[href*="explore/tags/harbor"]',
+        );
+        expect(link?.textContent).toBe('#harbor');
     });
 });

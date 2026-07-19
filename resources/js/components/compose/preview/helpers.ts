@@ -15,6 +15,13 @@ export function storyMedia(preview: PlatformPreview): MediaView | null {
     return previewMedia(preview)[0] ?? null;
 }
 
+/**
+ * Styling for @mentions, #hashtags and links inside a preview caption: the
+ * social-feed blue, no underline — the way Instagram and Facebook render them.
+ */
+export const PREVIEW_ENTITY_LINK =
+    'font-medium text-sky-600 hover:opacity-80 dark:text-sky-400';
+
 export function previewInitials(name: string): string {
     return name
         .split(/\s+/)

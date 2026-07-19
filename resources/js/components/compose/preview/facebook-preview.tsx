@@ -20,6 +20,7 @@ import type { MediaView } from '@/types/compose';
 import { PreviewFormatToggle } from './format-toggle';
 import {
     facebookCollage,
+    PREVIEW_ENTITY_LINK,
     previewInitials,
     previewMedia,
     storyMedia,
@@ -149,6 +150,7 @@ function FacebookFeedPost({ preview }: { preview: PlatformPreview }) {
                         text={caption}
                         platform="facebook"
                         linkExclusions={item?.linkExclusions ?? []}
+                        linkClassName={PREVIEW_ENTITY_LINK}
                     />
                 </p>
             )}
