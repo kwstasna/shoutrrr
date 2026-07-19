@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { InstagramPreview } from '../instagram-preview';
-import { imageMedia, makePreview } from './fixtures';
+import { imageMedia, makePreview, videoMedia } from './fixtures';
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
@@ -136,6 +136,63 @@ describe('InstagramPreview', () => {
         expect(el.textContent).toContain(
             'Instagram posts always include media',
         );
+    });
+
+    it('renders each story attachment as its own navigable segment', () => {
+        container = document.createElement('div');
+        document.body.append(container);
+        root = createRoot(container);
+        const media = [imageMedia('m0'), videoMedia('m1'), imageMedia('m2')];
+        act(() => {
+            root?.render(
+                createElement(InstagramPreview, {
+                    preview: makePreview('instagram', media),
+                }),
+            );
+        });
+        act(() => findByText(container!, 'Story').click());
+
+        expect(container.textContent).toContain('3 attachments');
+        expect(container.textContent).toContain('3 story segments');
+
+        // Segment 1 is the photo.
+        expect(container.querySelector('img[src*="m0"]')).not.toBeNull();
+        expect(container.querySelector('video')).toBeNull();
+
+        // Segment 2 is the video.
+        act(() =>
+            container
+                ?.querySelector<HTMLButtonElement>('[aria-label="Next story"]')
+                ?.click(),
+        );
+        expect(container.querySelector('video')).not.toBeNull();
+        expect(container.querySelector('img[src*="m0"]')).toBeNull();
+
+        // Segment 3 is the second photo.
+        act(() =>
+            container
+                ?.querySelector<HTMLButtonElement>('[aria-label="Next story"]')
+                ?.click(),
+        );
+        expect(container.querySelector('img[src*="m2"]')).not.toBeNull();
+        expect(container.querySelector('video')).toBeNull();
+    });
+
+    it('shows a single story with no segment navigation for one attachment', () => {
+        container = document.createElement('div');
+        document.body.append(container);
+        root = createRoot(container);
+        act(() => {
+            root?.render(
+                createElement(InstagramPreview, {
+                    preview: makePreview('instagram', [imageMedia('m0')]),
+                }),
+            );
+        });
+        act(() => findByText(container!, 'Story').click());
+
+        expect(container.textContent).not.toContain('attachments');
+        expect(container.querySelector('[aria-label="Next story"]')).toBeNull();
     });
 
     it('links hashtags in the caption', () => {

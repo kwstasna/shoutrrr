@@ -10,17 +10,19 @@ export function previewMedia(preview: PlatformPreview): MediaView[] {
     return preview.items[0]?.media ?? [];
 }
 
-/** First attachment — a Story publishes a single photo or video. */
-export function storyMedia(preview: PlatformPreview): MediaView | null {
-    return previewMedia(preview)[0] ?? null;
-}
-
 /**
  * Styling for @mentions, #hashtags and links inside a preview caption: the
  * social-feed blue, no underline — the way Instagram and Facebook render them.
  */
 export const PREVIEW_ENTITY_LINK =
     'font-medium text-sky-600 hover:opacity-80 dark:text-sky-400';
+
+/** Instagram-style username: the handle without a leading `@`, else the display name. */
+export function handleName(preview: PlatformPreview): string {
+    const handle = preview.accountHandle.replace(/^@+/, '').trim();
+
+    return handle === '' ? preview.accountName : handle;
+}
 
 export function previewInitials(name: string): string {
     return name

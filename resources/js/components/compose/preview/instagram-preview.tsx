@@ -9,7 +9,6 @@ import {
     Send,
     Square,
     Images as StoriesIcon,
-    X,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
@@ -22,20 +21,15 @@ import type { MediaView } from '@/types/compose';
 import { PreviewFormatToggle } from './format-toggle';
 import {
     clampIndex,
+    handleName,
     PREVIEW_ENTITY_LINK,
     previewInitials,
     previewMedia,
-    storyMedia,
 } from './helpers';
 import { PreviewVideo } from './preview-video';
+import { StoryFrame } from './story-frame';
 
 type InstagramFormat = 'feed' | 'story';
-
-function username(preview: PlatformPreview): string {
-    const handle = preview.accountHandle.replace(/^@+/, '').trim();
-
-    return handle === '' ? preview.accountName : handle;
-}
 
 function VerifiedBadge() {
     return (
@@ -199,7 +193,7 @@ function InstagramFeedPost({ preview }: { preview: PlatformPreview }) {
                 </span>
                 <div className="flex min-w-0 items-center gap-1">
                     <span className="truncate text-[13px] font-semibold text-foreground">
-                        {username(preview)}
+                        {handleName(preview)}
                     </span>
                     <VerifiedBadge />
                 </div>
@@ -233,7 +227,7 @@ function InstagramFeedPost({ preview }: { preview: PlatformPreview }) {
 
             <div className="space-y-1 px-3 pt-2 pb-3">
                 <p className="text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
-                    <span className="font-semibold">{username(preview)}</span>{' '}
+                    <span className="font-semibold">{handleName(preview)}</span>{' '}
                     <LinkedText
                         text={caption}
                         platform="instagram"
@@ -257,86 +251,6 @@ function InstagramFeedPost({ preview }: { preview: PlatformPreview }) {
     );
 }
 
-/**
- * A 9:16 Instagram Story frame (1080×1920) with the real story chrome — top
- * progress bar + author header and a bottom reply bar — so the user can keep key
- * content out of the ~13% top/bottom safe zones. A Story publishes a single photo
- * or video with no caption.
- */
-function InstagramStory({ preview }: { preview: PlatformPreview }) {
-    const media = storyMedia(preview);
-
-    return (
-        <div className="mx-auto w-full max-w-[248px]">
-            <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-neutral-900 text-white shadow-sm ring-1 ring-border">
-                {media ? (
-                    media.kind === 'video' ? (
-                        <PreviewVideo
-                            src={media.url}
-                            className="absolute inset-0 size-full"
-                            buttonClassName="bottom-14 right-3"
-                        />
-                    ) : (
-                        <img
-                            src={media.url}
-                            alt={media.alt_text ?? ''}
-                            className="absolute inset-0 size-full object-cover"
-                        />
-                    )
-                ) : (
-                    <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-neutral-700 to-neutral-900 text-center">
-                        <div className="space-y-1.5 px-4 text-white/70">
-                            <ImageIcon className="mx-auto size-6" aria-hidden />
-                            <p className="text-[12px] leading-4">
-                                Add one photo or video to preview your story
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/45 to-transparent px-3 pt-2.5 pb-6">
-                    <div className="h-0.5 w-full overflow-hidden rounded-full bg-white/40">
-                        <div className="h-full w-1/3 rounded-full bg-white" />
-                    </div>
-                    <div className="mt-2.5 flex items-center gap-2">
-                        <Avatar className="size-6 ring-1 ring-white/70">
-                            <AvatarImage src={preview.avatarUrl ?? undefined} />
-                            <AvatarFallback className="text-[9px] font-semibold text-foreground">
-                                {previewInitials(preview.accountName)}
-                            </AvatarFallback>
-                        </Avatar>
-                        <span className="truncate text-[12px] font-semibold drop-shadow">
-                            {username(preview)}
-                        </span>
-                        <span className="text-[11px] text-white/80 drop-shadow">
-                            now
-                        </span>
-                        <X className="ml-auto size-4 text-white/90 drop-shadow" />
-                    </div>
-                </div>
-
-                <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/45 to-transparent px-3 pt-6 pb-2.5">
-                    <span className="flex-1 rounded-full border border-white/60 px-3 py-1 text-[11px] text-white/90">
-                        Send message
-                    </span>
-                    <Heart
-                        className="size-4 text-white/90 drop-shadow"
-                        aria-hidden
-                    />
-                    <Send
-                        className="size-4 text-white/90 drop-shadow"
-                        aria-hidden
-                    />
-                </div>
-            </div>
-            <p className="mt-3 text-center text-[12px] leading-5 text-muted-foreground">
-                9:16 · 1080×1920 · keep key content clear of the top and bottom
-                bars. Captions aren&apos;t shown on stories.
-            </p>
-        </div>
-    );
-}
-
 const FORMAT_OPTIONS = [
     { value: 'feed', label: 'Post', icon: Square },
     { value: 'story', label: 'Story', icon: StoriesIcon },
@@ -356,7 +270,7 @@ export function InstagramPreview({ preview }: { preview: PlatformPreview }) {
                 />
             </div>
             {format === 'story' ? (
-                <InstagramStory preview={preview} />
+                <StoryFrame preview={preview} platform="instagram" />
             ) : (
                 <InstagramFeedPost preview={preview} />
             )}

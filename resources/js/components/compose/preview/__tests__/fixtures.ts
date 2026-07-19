@@ -15,6 +15,20 @@ export function imageMedia(id: string): MediaView {
     };
 }
 
+export function videoMedia(id: string): MediaView {
+    return {
+        id,
+        url: `https://cdn.example.test/${id}.mp4`,
+        mime: 'video/mp4',
+        kind: 'video',
+        alt_text: null,
+        duration_seconds: 12,
+        position: 0,
+        edit_settings: null,
+        source_url: null,
+    };
+}
+
 export function makePreview(
     platform: PlatformName,
     media: MediaView[],
