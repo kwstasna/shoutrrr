@@ -6,17 +6,27 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
         Schema::table('post_targets', function (Blueprint $table): void {
-            $table->string('format')->default('feed')->after('auto_split');
+            if (! Schema::hasColumn('post_targets', 'format')) {
+                $table->string('format')->default('feed')->after('auto_split');
+            }
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
         Schema::table('post_targets', function (Blueprint $table): void {
-            $table->dropColumn('format');
+            if (Schema::hasColumn('post_targets', 'format')) {
+                $table->dropColumn('format');
+            }
         });
     }
 };
